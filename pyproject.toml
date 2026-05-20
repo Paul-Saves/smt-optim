@@ -34,3 +34,8 @@ dev = [
 [project.urls]
 Homepage = "https://github.com/SMTorg/smt-optim"
 Issues = "https://github.com/SMTorg/smt-optim/issues"
+
+[tool.uv.workspace]
+members = [
+    "src",
+]

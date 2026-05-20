@@ -1,0 +1,6 @@
+numpy
+scipy
+smt
+
+[dev]
+smt>=2.10
