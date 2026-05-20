@@ -1,5 +1,6 @@
 import numpy as np
 from matplotlib import pyplot as plt
+from matplotlib.collections import LineCollection
 import math
 
 from smt_optim.core import Problem
@@ -11,6 +12,7 @@ from smt_optim.core import ObjectiveConfig, DriverConfig
 from smt_optim.utils.constraints import compute_rscv
 
 from custom_driver import CustomStopDriver
+
 
 def Dominates(p,q):
     #Returns True if point p strictly dominates point q, else returns False
@@ -118,6 +120,11 @@ def InjectBiObjectiveData(state, xt, yt, fidelity_level=0):
         state.dataset.add(sample)
 
     state.iter = 0
+
+def ScaleArray(data):
+    factor = np.std(data)
+    step = np.mean(data)
+    return (data-step)/factor
 
 def SimpleEGO(f,bounds,D,Y,max_iter,strat=MFSEGO,surrogate=SmtAutoModel,strat_kwargs=None,stop_conditions=None):
     #Runs a default implementation of EGO on a single-objective problem
@@ -419,26 +426,60 @@ def AcBiEGO(F,D,Y,Ng,Ni,bounds,soformulation="Normalized",show=False):
                 x = np.linspace(bounds[0][0], bounds[0][1], 500)
                 y1=F(x)[0]
                 y2=F(x)[1]
-                y1_mean=np.mean(y1)
-                y2_mean=np.mean(y2)
-                y1-=y1_mean
-                y2-=y2_mean
                 ax1.plot(y1,y2,color='gray', alpha=0.3, linestyle='--', label='Feasible objective range')
-                ax1.scatter([r[0]-y1_mean],[r[1]-y2_mean])
-                ax1.scatter([y[0]-y1_mean for y in Y],[y[1]-y2_mean for y in Y])
-                ax1.scatter([Y[i][0]-y1_mean for i in X],[Y[i][1]-y2_mean for i in X])
-                ax1.scatter([Y[-1][0]-y1_mean],[Y[-1][1]-y2_mean],color="red")
+                ax1.scatter([r[0]],[r[1]])
+                ax1.scatter([y[0] for y in Y],[y[1] for y in Y])
+                ax1.scatter([Y[i][0] for i in X],[Y[i][1] for i in X])
+                ax1.scatter([Y[-1][0]],[Y[-1][1]],color="red")
 
-                x2=np.linspace(0, 1, 500)
+                x2=np.linspace(0,1,500)
                 model1=state.obj_models[0].predict_values(x2)
+                model2=state.obj_models[1].predict_values(x2)
+
+                y1_exp0=Y[0][0]
+                y2_exp0=Y[0][1]
+                y1_exp1=Y[Ni][0]
+                y2_exp1=Y[Ni][1]
+
+                a=bounds[0][0]
+                b=bounds[0][1]
+                def affine_scaling(x):
+                    return (x-a)/(b-a)
+
+                y1_model0=state.obj_models[0].predict_values(affine_scaling(D[0]))
+                y2_model0=state.obj_models[1].predict_values(affine_scaling(D[0]))
+                y1_model1=state.obj_models[0].predict_values(affine_scaling(D[Ni]))
+                y2_model1=state.obj_models[1].predict_values(affine_scaling(D[Ni]))
+
+
+                alpha1=(y1_exp1-y1_exp0)/(y1_model1-y1_model0)
+                beta1=y1_exp0-alpha1*y1_model0
+
+                model1=model1*alpha1+beta1
+
+                alpha2=(y2_exp1-y2_exp0)/(y2_model1-y2_model0)
+                beta2=y2_exp0-alpha2*y2_model0
+
+                model2=model2*alpha2+beta2
+
                 ax2.plot(x,y1,color='gray', alpha=0.3, label='Actual function')
                 ax2.plot(x,model1,color='green', alpha=0.3, label='Acquisition function')
 
-                model2=state.obj_models[1].predict_values(x2)
+                
                 ax3.plot(x,y2,color='gray', alpha=0.3, label='Actual function')
                 ax3.plot(x,model2,color='green', alpha=0.3, label='Acquisition function')
 
-                ax1.plot(model1,model2)
+                cei=build_composite_expected_improvement(state)
+                colorvalue=[cei(np.atleast_1d(x)) for x in x2]
+
+
+                m1_flat = np.asarray(model1).ravel()
+                m2_flat = np.asarray(model2).ravel()
+                points = np.vstack((m1_flat, m2_flat)).T.reshape(-1, 1, 2)
+                segments = np.hstack((points[:-1], points[1:]))
+                lc = LineCollection(segments, array=colorvalue, cmap="jet", lw=3)
+                line = ax1.add_collection(lc)
+                ax1.autoscale()
                 plt.show()
 
             #3-Update Weights
@@ -500,8 +541,6 @@ def main():
     Ng = 100  # Total budget of extra evaluations
     Ni = 2   # Max iterations per single-objective EGO sub-call
 
-    print(f"Initial Pareto Front Indices: {ParetoFront(D, Y)}")
-
     try:
         pareto_points = AcBiEGO(
             F=F_target,
@@ -510,7 +549,7 @@ def main():
             Ng=Ng,
             Ni=Ni,
             bounds=bounds,
-            soformulation="Normalized",
+            soformulation="Product",
             show=True
         )
 

@@ -198,7 +198,6 @@ class SmtAutoModel(Surrogate):
             "hyper_opt": "Cobyla",
             "seed": self.train_counter,
         })
-
         if num_fidelity == 1:
             self.model = KRG(**model_kwargs)
         else:
