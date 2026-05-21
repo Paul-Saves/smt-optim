@@ -48,10 +48,8 @@ def SingleObjectiveProduct(y,r):
     return -math.prod(PositivePart(r[i]-y[i])**2 for i in range(len(y)))
 
 def SingleObjectiveProductModified(y,r):
-    #Returns a single objective product formulation of the problem, that is equal to 0 only in the upper right corner
-    if all(y[i]>=r[i] for i in range(len(y))):
-        return 0
-    return -math.prod((r[i]-y[i])**2 for i in range(len(y)))
+    #Returns a single objective product formulation of the problem, that is equal to 0 except in the bottom left corner
+    return -math.prod((PositivePart(r[i]-y[i]))**2 for i in range(len(y))) #TODO: Find a suitable formulation
 
 def SingleObjectiveNormalized(y,r,s=None):
     if s==None:
@@ -302,7 +300,7 @@ def SimpleBiEGO(F,D,Y,Ng,Ni,bounds,soformulation="Normalized",show=False):
     X=ParetoFront(D,Y)
     return [(D[i],Y[i]) for i in X]
 
-def AcBiEGO(F,D,Y,Ng,Ni,bounds,soformulation="Normalized",show=False):
+def AcBiEGO(F,D,Y,Ng,Ni,Ni0,bounds,soformulation="Normalized",show=False):
     """
         Find the Pareto front of F:x->(f1(x),f2(x)), with the DoE D=[x1,...,xt] and Y=[F(x1),...,F(xt)],
         using at most Ng evaluations of F. Ni is the maximum number of calls used for any single EGO resolution
@@ -331,9 +329,9 @@ def AcBiEGO(F,D,Y,Ng,Ni,bounds,soformulation="Normalized",show=False):
 
     #Run EGO on the problems min(f1(x)) and min(f2(x))
     print("Running MFSEGO on min(f1)")
-    SimpleEGO(f1,bounds,D,[y[0] for y in Y],Ni)
+    SimpleEGO(f1,bounds,D,[y[0] for y in Y],Ni0)
     print("Running MFSEGO on min(f2)")
-    SimpleEGO(f2_eval,bounds,D,[y[1] for y in Y],Ni)
+    SimpleEGO(f2_eval,bounds,D,[y[1] for y in Y],Ni0)
     
     X=ParetoFront(D,Y)
 
@@ -353,9 +351,9 @@ def AcBiEGO(F,D,Y,Ng,Ni,bounds,soformulation="Normalized",show=False):
         elif J==1:
             #Run EGO on the problems min(f1(x)) and min(f2(x)) until there are at least two and 3 points in the Pareto front.
             print("Running MFSEGO on min(f1)")
-            SimpleEGO(f1,bounds,D,[y[0] for y in Y],Ni,stop_conditions=[(StopConditionBigFront,{"D":D,"Y":Y,"n":2})])
+            SimpleEGO(f1,bounds,D,[y[0] for y in Y],Ni0,stop_conditions=[(StopConditionBigFront,{"D":D,"Y":Y,"n":2})])
             print("Running MFSEGO on min(f2)")
-            SimpleEGO(f2,bounds,D,[y[1] for y in Y],Ni,stop_conditions=[(StopConditionBigFront,{"D":D,"Y":Y,"n":3})])
+            SimpleEGO(f2,bounds,D,[y[1] for y in Y],Ni0,stop_conditions=[(StopConditionBigFront,{"D":D,"Y":Y,"n":3})])
             skip=True
         else:
             raise ValueError("The Pareto Front is empty")
@@ -489,10 +487,10 @@ def AcBiEGO(F,D,Y,Ng,Ni,bounds,soformulation="Normalized",show=False):
         #Update Pareto front
         print("Updating Pareto front")
         X=ParetoFront(D,Y)
-        print(X)
+        print("Pareto front:",X)
 
     X=ParetoFront(D,Y)
-    return [(D[i],Y[i]) for i in X]
+    return ([(D[i],Y[i]) for i in X],state)
 
 
 def test_poly(x):
@@ -502,10 +500,10 @@ def gaussian(x,mu=np.array([1.1]),v=np.array([2])):
     return -np.exp(-(x-mu)**2/(v**2))
 
 def sasena_2002(x: np.ndarray):
-    return -np.sin(x) - np.exp(x / 10)
+    return -np.sin(x) - np.exp(x / 100)
 
 def sasena_bis(x):
-    return -np.cos(x) + np.exp(x/10)
+    return -np.cos(x) + np.exp(x/100)
 
 def quad(x: np.ndarray):
     return np.atleast_1d(x**2)
@@ -539,18 +537,20 @@ def main():
     Y = [F_target(x) for x in D]
 
     Ng = 100  # Total budget of extra evaluations
-    Ni = 2   # Max iterations per single-objective EGO sub-call
+    Ni = 3   # Max iterations per single-objective EGO sub-call
+    Ni0 = 10 # Max iterations per call to min(f1) or min(f2)
 
     try:
-        pareto_points = AcBiEGO(
+        pareto_points,state = AcBiEGO(
             F=F_target,
             D=D,
             Y=Y,
             Ng=Ng,
             Ni=Ni,
+            Ni0=Ni0,
             bounds=bounds,
             soformulation="Product",
-            show=True
+            show=False
         )
 
         print("\n--- Optimization Complete ---")
@@ -564,69 +564,55 @@ def main():
         import traceback
         traceback.print_exc()
 
+    _,axs=plt.subplots(1,3,figsize=(15, 5))
+    ax1,ax2,ax3=axs[0],axs[1],axs[2]
     x = np.linspace(bounds[0][0], bounds[0][1], 500)
-    y1=f1(x)
-    y2=f2(x)
+    y1=F_target(x)[0]
+    y2=F_target(x)[1]
+    ax1.plot(y1,y2,color='gray', alpha=0.3, linestyle='--', label='Feasible objective range')
+    ax1.scatter([y[0] for y in Y],[y[1] for y in Y])
+    ax1.scatter([p[1][0] for p in pareto_points],[p[1][1] for p in pareto_points])
+    ax1.scatter([Y[-1][0]],[Y[-1][1]],color="red")
 
-    # Initial DoE points
-    D_init = np.array([-1.0, 1.0, 0.0])
-    Y_init = f1(D_init)  # f1 values
-    Y_init2 = f2(D_init) # f2 values
+    x2=np.linspace(0,1,500)
+    model1=state.obj_models[0].predict_values(x2)
+    model2=state.obj_models[1].predict_values(x2)
+
+    y1_exp0=Y[0][0]
+    y2_exp0=Y[0][1]
+    y1_exp1=Y[Ni][0]
+    y2_exp1=Y[Ni][1]
+
+    a=bounds[0][0]
+    b=bounds[0][1]
+    def affine_scaling(x):
+        return (x-a)/(b-a)
+
+    y1_model0=state.obj_models[0].predict_values(affine_scaling(D[0]))
+    y2_model0=state.obj_models[1].predict_values(affine_scaling(D[0]))
+    y1_model1=state.obj_models[0].predict_values(affine_scaling(D[Ni]))
+    y2_model1=state.obj_models[1].predict_values(affine_scaling(D[Ni]))
 
 
-    """
-    # Pareto Set: x in [0, 2]
-    x_pareto = np.linspace(0, 2, 100)
-    f1_pareto = x_pareto**2
-    f2_pareto = (x_pareto - 2)**2
-    """
+    alpha1=(y1_exp1-y1_exp0)/(y1_model1-y1_model0)
+    beta1=y1_exp0-alpha1*y1_model0
 
-    # 2. Create the plots
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+    model1=model1*alpha1+beta1
 
-    # --- Plot 1: Decision Space ---
-    ax1.plot(x, y1, label='$f_1(x)$', color='royalblue', linewidth=2)
-    ax1.plot(x, y2, label='$f_2(x)$', color='crimson', linewidth=2)
+    alpha2=(y2_exp1-y2_exp0)/(y2_model1-y2_model0)
+    beta2=y2_exp0-alpha2*y2_model0
 
-    # Mark initial points
-    ax1.scatter(D_init, Y_init, color='black', zorder=5, label='Initial DoE ($f_1$)')
-    ax1.scatter(D_init, Y_init2, color='black', marker='x', s=80, zorder=5, label='Initial DoE ($f_2$)')
+    model2=model2*alpha2+beta2
 
-    ax1.set_title("Decision Space (Input $x$ vs Objectives)", fontsize=13)
-    ax1.set_xlabel("$x$")
-    ax1.set_ylabel("Objective Value")
-    ax1.grid(True, linestyle='--', alpha=0.6)
-    ax1.legend()
+    ax2.plot(x,y1,color='gray', alpha=0.3, label='Actual function')
+    ax2.plot(x,model1,color='green', alpha=0.3, label='Acquisition function')
 
-    # --- Plot 2: Objective Space ---
-    # Full objective range (for context)
-    ax2.plot(y1, y2, color='gray', alpha=0.3, linestyle='--', label='Feasible objective range')
+    
+    ax3.plot(x,y2,color='gray', alpha=0.3, label='Actual function')
+    ax3.plot(x,model2,color='green', alpha=0.3, label='Acquisition function')
 
-    # Highlight the Pareto Front
-    # ax2.plot(f1_pareto, f2_pareto, color='darkorange', linewidth=4, label='Pareto Front (Target)')
 
-    # Mark initial points
-    ax2.scatter(Y_init, Y_init2, color='black', s=100, edgecolors='white', zorder=5, label='Initial DoE')
-
-    # Annotate points for clarity
-    for i, txt in enumerate(D_init):
-        ax2.annotate(f" x={txt}", (Y_init[i], Y_init2[i]), xytext=(5, 5), textcoords='offset points')
-
-    # Mark found Pareto points
-    pareto_1=[p[1][0][0] for p in pareto_points]
-    pareto_2=[p[1][1][0] for p in pareto_points]
-    ax2.scatter(pareto_1,pareto_2, color='purple', s=100, edgecolors='white', zorder=5, label='Found Pareto front')
-
-    # Annotate points for clarity
-    for i, txt in enumerate([p[0] for p in pareto_points]):
-        ax2.annotate(f" x={txt}", (pareto_points[i][1][0][0], pareto_points[i][1][1][0]), xytext=(5, 5), textcoords='offset points')
-
-    ax2.set_title("Objective Space ($f_1$ vs $f_2$)", fontsize=13)
-    ax2.set_xlabel("$f_1$ (Minimize)")
-    ax2.set_ylabel("$f_2$ (Minimize)")
-    ax2.grid(True, linestyle='--', alpha=0.6)
-    ax2.legend()
-
+    ax1.plot(model1,model2)
     plt.show()
 
 
