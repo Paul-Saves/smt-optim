@@ -49,7 +49,9 @@ def SingleObjectiveProduct(y,r):
 
 def SingleObjectiveProductModified(y,r):
     #Returns a single objective product formulation of the problem, that is equal to 0 except in the bottom left corner
-    return -math.prod((PositivePart(r[i]-y[i]))**2 for i in range(len(y))) #TODO: Find a suitable formulation
+    if all(y[i]>r[i] for i in range(len(y))):
+        return 0
+    return -math.prod((r[i]-y[i])*(abs(r[i]-y[i])) for i in range(len(y))) #TODO: Find a suitable formulation
 
 def SingleObjectiveNormalized(y,r,s=None):
     if s==None:
@@ -204,7 +206,7 @@ def StopConditionBigFront(state,config,D,Y,n):
         return False
     return True
 
-def SimpleBiEGO(F,D,Y,Ng,Ni,bounds,soformulation="Normalized",show=False):
+def SimpleBiEGO(F,D,Y,Ng,Ni,Ni0,bounds,soformulation="Normalized",show1D=False):
     """
         Find the Pareto front of F:x->(f1(x),f2(x)), with the DoE D=[x1,...,xt] and Y=[F(x1),...,F(xt)],
         using at most Ng evaluations of F. Ni is the maximum number of calls used for any single EGO resolution
@@ -231,9 +233,9 @@ def SimpleBiEGO(F,D,Y,Ng,Ni,bounds,soformulation="Normalized",show=False):
 
     #Run EGO on the problems min(f1(x)) and min(f2(x))
     print("Running MFSEGO on min(f1)")
-    SimpleEGO(f1,bounds,D,[y[0] for y in Y],Ni)
+    state=SimpleEGO(f1,bounds,D,[y[0] for y in Y],Ni0)
     print("Running MFSEGO on min(f2)")
-    SimpleEGO(f2,bounds,D,[y[1] for y in Y],Ni)
+    state=SimpleEGO(f2,bounds,D,[y[1] for y in Y],Ni0)
     
     X=ParetoFront(D,Y)
 
@@ -253,9 +255,9 @@ def SimpleBiEGO(F,D,Y,Ng,Ni,bounds,soformulation="Normalized",show=False):
         elif J==1:
             #Run EGO on the problems min(f1(x)) and min(f2(x)) until there are at least two and 3 points in the Pareto front.
             print("Running MFSEGO on min(f1)")
-            SimpleEGO(f1,bounds,D,[y[0] for y in Y],Ni,stop_conditions=[(StopConditionBigFront,{"D":D,"Y":Y,"n":2})])
+            state=SimpleEGO(f1,bounds,D,[y[0] for y in Y],Ni0,stop_conditions=[(StopConditionBigFront,{"D":D,"Y":Y,"n":2})])
             print("Running MFSEGO on min(f2)")
-            SimpleEGO(f2,bounds,D,[y[1] for y in Y],Ni,stop_conditions=[(StopConditionBigFront,{"D":D,"Y":Y,"n":3})])
+            SimpleEGO(f2,bounds,D,[y[1] for y in Y],Ni0,stop_conditions=[(StopConditionBigFront,{"D":D,"Y":Y,"n":3})])
             skip=True
         else:
             raise ValueError("The Pareto Front is empty")
@@ -274,7 +276,7 @@ def SimpleBiEGO(F,D,Y,Ng,Ni,bounds,soformulation="Normalized",show=False):
                 y=F_eval(x)
                 return phi(y)
 
-            if show:
+            if show1D:
                 _,ax=plt.subplots(1,1)
                 x = np.linspace(bounds[0][0], bounds[0][1], 500)
                 y1=F(x)[0]
@@ -287,7 +289,7 @@ def SimpleBiEGO(F,D,Y,Ng,Ni,bounds,soformulation="Normalized",show=False):
                 plt.show()
 
             print("Running MFSEGO on the single-objective subproblem")
-            SimpleEGO(SubProblem,bounds,D,[phi(y) for y in Y],Ni,MFSEGO,surrogate=SmtAutoModel,stop_conditions=[(StopConditionChangeFront,{"D":D,"Y":Y,"X":X})])
+            state=SimpleEGO(SubProblem,bounds,D,[phi(y) for y in Y],Ni,MFSEGO,surrogate=SmtAutoModel,stop_conditions=[(StopConditionChangeFront,{"D":D,"Y":Y,"X":X})])
 
             #3-Update Weights
             print("biEGO step 4")
@@ -298,9 +300,9 @@ def SimpleBiEGO(F,D,Y,Ng,Ni,bounds,soformulation="Normalized",show=False):
         X=ParetoFront(D,Y)
 
     X=ParetoFront(D,Y)
-    return [(D[i],Y[i]) for i in X]
+    return ([(D[i],Y[i]) for i in X],state)
 
-def AcBiEGO(F,D,Y,Ng,Ni,Ni0,bounds,soformulation="Normalized",show=False):
+def AcBiEGO(F,D,Y,Ng,Ni,Ni0,bounds,soformulation="Normalized",show1D=False):
     """
         Find the Pareto front of F:x->(f1(x),f2(x)), with the DoE D=[x1,...,xt] and Y=[F(x1),...,F(xt)],
         using at most Ng evaluations of F. Ni is the maximum number of calls used for any single EGO resolution
@@ -324,14 +326,14 @@ def AcBiEGO(F,D,Y,Ng,Ni,Ni0,bounds,soformulation="Normalized",show=False):
 
     #Coordinate applications of f
     f1=lambda x:F_eval(x)[0]
-    f2=lambda x:F(x)[1] # /!\ TEMPORARY FIX We supposed that f1 is always called when f2 is called, but the current implementation doubles the number of calls to F = (f1,f2), to solve that we need to either separate f1 and f2 or modify the driver evaluation for multi-objective functions
+    f2=lambda x:F(x)[1] # /!\ TEMPORARY FIX We suppose that f1 is always called when f2 is called, but the current implementation doubles the number of calls to F = (f1,f2), to solve that we need to either separate f1 and f2 or modify the driver evaluation for multi-objective functions
     f2_eval=lambda x:F_eval(x)[1]
 
     #Run EGO on the problems min(f1(x)) and min(f2(x))
     print("Running MFSEGO on min(f1)")
-    SimpleEGO(f1,bounds,D,[y[0] for y in Y],Ni0)
+    state=SimpleEGO(f1,bounds,D,[y[0] for y in Y],Ni0)
     print("Running MFSEGO on min(f2)")
-    SimpleEGO(f2_eval,bounds,D,[y[1] for y in Y],Ni0)
+    state=SimpleEGO(f2_eval,bounds,D,[y[1] for y in Y],Ni0)
     
     X=ParetoFront(D,Y)
 
@@ -351,9 +353,9 @@ def AcBiEGO(F,D,Y,Ng,Ni,Ni0,bounds,soformulation="Normalized",show=False):
         elif J==1:
             #Run EGO on the problems min(f1(x)) and min(f2(x)) until there are at least two and 3 points in the Pareto front.
             print("Running MFSEGO on min(f1)")
-            SimpleEGO(f1,bounds,D,[y[0] for y in Y],Ni0,stop_conditions=[(StopConditionBigFront,{"D":D,"Y":Y,"n":2})])
+            state=SimpleEGO(f1,bounds,D,[y[0] for y in Y],Ni0,stop_conditions=[(StopConditionBigFront,{"D":D,"Y":Y,"n":2})])
             print("Running MFSEGO on min(f2)")
-            SimpleEGO(f2,bounds,D,[y[1] for y in Y],Ni0,stop_conditions=[(StopConditionBigFront,{"D":D,"Y":Y,"n":3})])
+            state=SimpleEGO(f2_eval,bounds,D,[y[1] for y in Y],Ni0,stop_conditions=[(StopConditionBigFront,{"D":D,"Y":Y,"n":3})])
             skip=True
         else:
             raise ValueError("The Pareto Front is empty")
@@ -364,13 +366,13 @@ def AcBiEGO(F,D,Y,Ng,Ni,Ni0,bounds,soformulation="Normalized",show=False):
             if soformulation=="Normalized":
                 phi = lambda y: SingleObjectiveNormalized(y,r)
             elif soformulation=="Product":
-                phi = lambda y: SingleObjectiveProductModified(y,r)
+                phi = lambda y: SingleObjectiveProduct(y,r)
             else:
                 raise ValueError("Unknown single-objective formulation")
 
-            def build_composite_expected_improvement(state):
+            def build_composite_expected_improvement(state,phi=phi):
 
-                def composite_expected_improvement(mu: float, s2: float, f_min: float, n_expectancy=100) -> float:
+                def composite_expected_improvement(mu: float, s2: float, f_min: float, n_expectancy=1000) -> float:
                     """
                     Expected Improvement composite acquisition function.
 
@@ -415,10 +417,10 @@ def AcBiEGO(F,D,Y,Ng,Ni,Ni0,bounds,soformulation="Normalized",show=False):
                 return cei
 
             print("Running Multi-EGO on the biobjective subproblem with specific acquisition function")
-
+            print("r",r)
             state=DoubleEGO(f1,f2,bounds,D,Y,Ni,MultiObj,strat_kwargs={"acq_func":build_composite_expected_improvement},stop_conditions=[(StopConditionChangeFront,{"D":D,"Y":Y,"X":X})])
 
-            if show:
+            if show1D:
                 _,axs=plt.subplots(1,3,figsize=(15, 5))
                 ax1,ax2,ax3=axs[0],axs[1],axs[2]
                 x = np.linspace(bounds[0][0], bounds[0][1], 500)
@@ -522,97 +524,81 @@ def absxsinsurx(x,c=1.3):
         return np.atleast_1d(0)
     return (-2*abs(x-c)+(x-c)*np.sin(1/(x-c)))
 
+def Fonseca_Fleming1(x):
+    return np.atleast_1d(1-np.exp(-np.sum((x-1/(np.sqrt(len(x))))**2)))
+
+def Fonseca_Fleming2(x):
+    return np.atleast_1d(1-np.exp(-np.sum((x+1/(np.sqrt(len(x))))**2)))
+
+def easy(x):
+    return np.atleast_1d(x[0]+x[1])
+
+def easy2(x):
+    return np.atleast_1d((x[0]+x[1])**2)
+
 def main():
     print("--- Starting Bi-Objective EGO Optimization Test ---")
 
-    f1=sasena_2002
-    f2=sasena_bis
+    f1=easy
+    f2=easy2
 
     def F_target(val):
         return (f1(val), f2(val))
 
-    bounds = np.array([[-10, 10]])
+    bounds = np.array([[-4, 4],[-4,4]])
 
-    D = [np.array([-1.0]),np.array([1.0]), np.array([0.1])]
+    D = [np.array([-1.0,0.0]),np.array([1.0,1.3]), np.array([0.1,-3.0])]
     Y = [F_target(x) for x in D]
 
     Ng = 100  # Total budget of extra evaluations
-    Ni = 3   # Max iterations per single-objective EGO sub-call
-    Ni0 = 10 # Max iterations per call to min(f1) or min(f2)
+    Ni = 10   # Max iterations per single-objective EGO sub-call
+    Ni0 = 2 # Max iterations per call to min(f1) or min(f2)
 
-    try:
-        pareto_points,state = AcBiEGO(
-            F=F_target,
-            D=D,
-            Y=Y,
-            Ng=Ng,
-            Ni=Ni,
-            Ni0=Ni0,
-            bounds=bounds,
-            soformulation="Product",
-            show=False
-        )
+    pareto_points,state = AcBiEGO(
+        F=F_target,
+        D=D,
+        Y=Y,
+        Ng=Ng,
+        Ni=Ni,
+        Ni0=Ni0,
+        bounds=bounds,
+        soformulation="Product",
+        show1D=False
+    )
 
-        print("\n--- Optimization Complete ---")
-        print(f"Number of points on the Pareto Front: {len(pareto_points)}")
-        print("Pareto Optimal X values:")
-        for pt in [p[0] for p in pareto_points]:
-            print(f"  x: {pt}, F(x): {F_target(pt)}")
-            
-    except Exception as e:
-        print(f"An error occurred during optimization: {e}")
-        import traceback
-        traceback.print_exc()
-
-    _,axs=plt.subplots(1,3,figsize=(15, 5))
-    ax1,ax2,ax3=axs[0],axs[1],axs[2]
-    x = np.linspace(bounds[0][0], bounds[0][1], 500)
-    y1=F_target(x)[0]
-    y2=F_target(x)[1]
-    ax1.plot(y1,y2,color='gray', alpha=0.3, linestyle='--', label='Feasible objective range')
-    ax1.scatter([y[0] for y in Y],[y[1] for y in Y])
-    ax1.scatter([p[1][0] for p in pareto_points],[p[1][1] for p in pareto_points])
-    ax1.scatter([Y[-1][0]],[Y[-1][1]],color="red")
-
-    x2=np.linspace(0,1,500)
-    model1=state.obj_models[0].predict_values(x2)
-    model2=state.obj_models[1].predict_values(x2)
-
-    y1_exp0=Y[0][0]
-    y2_exp0=Y[0][1]
-    y1_exp1=Y[Ni][0]
-    y2_exp1=Y[Ni][1]
-
-    a=bounds[0][0]
-    b=bounds[0][1]
-    def affine_scaling(x):
-        return (x-a)/(b-a)
-
-    y1_model0=state.obj_models[0].predict_values(affine_scaling(D[0]))
-    y2_model0=state.obj_models[1].predict_values(affine_scaling(D[0]))
-    y1_model1=state.obj_models[0].predict_values(affine_scaling(D[Ni]))
-    y2_model1=state.obj_models[1].predict_values(affine_scaling(D[Ni]))
-
-
-    alpha1=(y1_exp1-y1_exp0)/(y1_model1-y1_model0)
-    beta1=y1_exp0-alpha1*y1_model0
-
-    model1=model1*alpha1+beta1
-
-    alpha2=(y2_exp1-y2_exp0)/(y2_model1-y2_model0)
-    beta2=y2_exp0-alpha2*y2_model0
-
-    model2=model2*alpha2+beta2
-
-    ax2.plot(x,y1,color='gray', alpha=0.3, label='Actual function')
-    ax2.plot(x,model1,color='green', alpha=0.3, label='Acquisition function')
-
+    print("\n--- Optimization Complete ---")
+    print(f"Number of points on the Pareto Front: {len(pareto_points)}")
+    print("Pareto Optimal X values:")
+    for pt in [p[0] for p in pareto_points]:
+        print(f"  x: {pt}, F(x): {F_target(pt)}")
     
-    ax3.plot(x,y2,color='gray', alpha=0.3, label='Actual function')
-    ax3.plot(x,model2,color='green', alpha=0.3, label='Acquisition function')
+    _,ax1=plt.subplots(1,1,figsize=(15, 5))
+    ax1.plot([p[1][0] for p in pareto_points],[p[1][1] for p in pareto_points])
 
+    D = [np.array([-1.0,0.0]),np.array([1.0,1.3]), np.array([0.1,-3.0])]
+    Y = [F_target(x) for x in D]
+    
+    pareto_points,state = SimpleBiEGO(
+        F=F_target,
+        D=D,
+        Y=Y,
+        Ng=Ng,
+        Ni=Ni,
+        Ni0=Ni0,
+        bounds=bounds,
+        soformulation="Product",
+        show1D=False
+    )
 
-    ax1.plot(model1,model2)
+    print("\n--- Optimization Complete ---")
+    print(f"Number of points on the Pareto Front: {len(pareto_points)}")
+    print("Pareto Optimal X values:")
+    for pt in [p[0] for p in pareto_points]:
+        print(f"  x: {pt}, F(x): {F_target(pt)}")
+            
+
+    ax1.scatter([p[1][0] for p in pareto_points],[p[1][1] for p in pareto_points])
+
     plt.show()
 
 
