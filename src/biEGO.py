@@ -539,8 +539,8 @@ def easy2(x):
 def main():
     print("--- Starting Bi-Objective EGO Optimization Test ---")
 
-    f1=easy
-    f2=easy2
+    f1=Fonseca_Fleming1
+    f2=Fonseca_Fleming2
 
     def F_target(val):
         return (f1(val), f2(val))
@@ -550,9 +550,9 @@ def main():
     D = [np.array([-1.0,0.0]),np.array([1.0,1.3]), np.array([0.1,-3.0])]
     Y = [F_target(x) for x in D]
 
-    Ng = 100  # Total budget of extra evaluations
-    Ni = 10   # Max iterations per single-objective EGO sub-call
-    Ni0 = 2 # Max iterations per call to min(f1) or min(f2)
+    Ng = 50  # Total budget of extra evaluations
+    Ni = 5   # Max iterations per single-objective EGO sub-call
+    Ni0 = 5 # Max iterations per call to min(f1) or min(f2)
 
     pareto_points,state = AcBiEGO(
         F=F_target,
@@ -573,7 +573,7 @@ def main():
         print(f"  x: {pt}, F(x): {F_target(pt)}")
     
     _,ax1=plt.subplots(1,1,figsize=(15, 5))
-    ax1.plot([p[1][0] for p in pareto_points],[p[1][1] for p in pareto_points])
+    ax1.scatter([p[1][0] for p in pareto_points],[p[1][1] for p in pareto_points])
 
     D = [np.array([-1.0,0.0]),np.array([1.0,1.3]), np.array([0.1,-3.0])]
     Y = [F_target(x) for x in D]
