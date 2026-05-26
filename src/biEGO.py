@@ -547,10 +547,10 @@ def main():
 
     bounds = np.array([[-4, 4],[-4,4]])
 
-    D = [np.array([-1.0,0.0]),np.array([1.0,1.3]), np.array([0.1,-3.0])]
+    D = [np.array([-1.0,0.0]),np.array([1.0,1.3]), np.array([0.1,-3.0]),np.array([-2.0,-0.5]),np.array([-3.0,1.0])]
     Y = [F_target(x) for x in D]
 
-    Ng = 50  # Total budget of extra evaluations
+    Ng = 35  # Total budget of extra evaluations
     Ni = 5   # Max iterations per single-objective EGO sub-call
     Ni0 = 5 # Max iterations per call to min(f1) or min(f2)
 
