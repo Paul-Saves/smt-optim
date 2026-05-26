@@ -84,6 +84,15 @@ def build_composite_expected_improvement(state,kwargs):
         return composite_expected_improvement(y,s,f_min)
     return cei
 
+def SingleObjectiveNormalized(y,r,s=None):
+    if s==None:
+        s=[1]*len(y)
+    return np.max((y[i]-r[i])/s[i] for i in range(len(y)))
+
+def SingleObjectiveProduct(y,r):
+    #Returns a single objective product formulation of the problem
+    return -np.prod(PositivePart(r[i]-y[i])**2 for i in range(len(y)))
+
 class BiEGO(AcquisitionStrategy):
     def __init__(self, state: State, **kwargs):
         super().__init__()
@@ -95,6 +104,7 @@ class BiEGO(AcquisitionStrategy):
         self.n_start = kwargs.pop("n_start", 20)
         self.sp_method = kwargs.pop("sp_method", "Cobyla")
         self.sp_tol = kwargs.pop("sp_tol", np.sqrt(np.finfo(float).eps))
+        self.soformulation=kwargs.pop("so_formulation","Product")
         self.current_calls = 0
         self.current_subcalls = 0
         self.single_obj_max_calls = kwargs.pop("single_obj_max_calls",5)
@@ -126,10 +136,16 @@ class BiEGO(AcquisitionStrategy):
         else:
             if self.current_subcalls == 0 or self.current_subcalls == self.single_obj_max_calls:
                 self.current_subcalls = 0
-                r=(0,0) # Choose r
+                r=(1,1) # Choose r
+                if self.soformulation=="Normalized":
+                    phi = lambda y: SingleObjectiveNormalized(y,r)
+                elif self.soformulation=="Product":
+                    phi = lambda y: SingleObjectiveProduct(y,r)
+                else:
+                    raise ValueError("Unknown single-objective formulation")
             self.current_calls+=1
             self.current_calls+=1
-            return self.get_infill_custom(state,self.acq_func_gen3)
+            return self.get_infill_custom(state,self.acq_func_gen3,{"phi":phi})
     
     def get_infill_custom(self,state,acq_func_gen,**kwargs):
         self.seed = state.iter
