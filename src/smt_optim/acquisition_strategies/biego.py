@@ -1,6 +1,3 @@
-from time import perf_counter
-from typing import Callable
-
 import numpy as np
 from scipy import optimize as so, stats as stats
 
@@ -8,10 +5,8 @@ import smt.design_space as ds
 
 from smt_optim.acquisition_functions import log_ei
 from smt_optim.acquisition_strategies import AcquisitionStrategy
-# from smt_optim.surrogate_models.smt import SmtMFK
 
 from smt_optim.core.state import State
-from smt_optim.subsolvers.multistart import mixvar_multistart_minimize
 
 from smt_optim.utils.get_fmin import get_fmin
 
@@ -36,54 +31,6 @@ def ParetoFront(D,Y):
 def PositivePart(x):
     return max(x,0)
 
-def build_composite_expected_improvement(state,kwargs):
-
-    phi=kwargs["phi"]
-
-    def composite_expected_improvement(mu: float, s2: float, f_min: float, n_expectancy=1000) -> float:
-        """
-        Expected Improvement composite acquisition function.
-
-        Parameters
-        ----------
-        mu: np.array
-            Mean prediction.
-        s2: np.array
-            Variance prediction.
-        f_min: float
-            Best minimum objective value in training data.
-        phi: np.array -> float
-
-        Returns
-        -------
-        float
-            Expected Improvement value.
-        """
-
-        S=np.atleast_1d(0.0)
-        for i in range(n_expectancy):
-            sampleZ = np.random.multivariate_normal(np.array([0,0]),np.array([[1,0],[0,1]]))
-            S+=PositivePart(f_min-phi(mu+s2*sampleZ))
-        ei=S/n_expectancy
-
-        return ei[0]
-    
-    models=state.obj_models
-    f_min=min([phi(y) for y in state.scaled_dataset.export_data([0,1],0)])
-
-    def cei(x_pred):
-        s = np.array([
-            np.sqrt(models[0].predict_variances(x_pred)).item(),
-            np.sqrt(models[1].predict_variances(x_pred)).item()
-        ])
-
-        y = np.array([
-            models[0].predict_values(x_pred).item(),
-            models[1].predict_values(x_pred).item(),
-        ])
-        return composite_expected_improvement(y,s,f_min)
-    return cei
-
 def SingleObjectiveNormalized(y,r,s=None):
     if s==None:
         s=[1]*len(y)
@@ -91,7 +38,19 @@ def SingleObjectiveNormalized(y,r,s=None):
 
 def SingleObjectiveProduct(y,r):
     #Returns a single objective product formulation of the problem
-    return -np.prod(PositivePart(r[i]-y[i])**2 for i in range(len(y)))
+    return -np.prod([PositivePart(r[i]-y[i])**2 for i in range(len(y))])
+
+def Norm(p):
+    #Returns the 2-norm of a point
+    return np.sqrt(sum(x**2 for x in p))
+
+def Dist(p,q):
+    #Returns the distance between two points
+    return Norm([p[i]-q[i] for i in range(len(p))])
+
+def DistToNeighbors(p1,p2,p3,w):
+    #Returns the sum of squared distances from p2 to its neighbors p1 and p3 on the Pareto front, coefficiented by the Weight.
+    return (Dist(p1,p2)**2+Dist(p2,p3)**2)/(w+1)
 
 class BiEGO(AcquisitionStrategy):
     def __init__(self, state: State, **kwargs):
@@ -101,19 +60,20 @@ class BiEGO(AcquisitionStrategy):
         self.acq_func1 = kwargs.get("acq_func", log_ei) #Acquisition function for min(f1) (to be modified to take only f1 as a parameter)
         self.acq_func2 = kwargs.get("acq_func", log_ei) #Acquisition function for min(f2) (same for f2)
         self.acq_func_gen3 = kwargs.get("acq_func_bi", init_bi_obj_cei) #Composite acquisition function for min(f1,f2)
-        self.n_start = kwargs.pop("n_start", 20)
+        self.n_start = kwargs.pop("n_start", 5)
         self.sp_method = kwargs.pop("sp_method", "Cobyla")
         self.sp_tol = kwargs.pop("sp_tol", np.sqrt(np.finfo(float).eps))
         self.soformulation=kwargs.pop("so_formulation","Product")
         self.current_calls = 0
         self.current_subcalls = 0
         self.single_obj_max_calls = kwargs.pop("single_obj_max_calls",5)
-        self.acq_func_gen1 = lambda state : lambda x : self.acq_func1(state.obj_models[0].predict_values(x).item(),state.obj_models[0].predict_variances(x).item(),min(state.scaled_dataset.export_data([0],0)))
-        self.acq_func_gen2 = lambda state : lambda x : self.acq_func2(state.obj_models[1].predict_values(x).item(),state.obj_models[1].predict_variances(x).item(),min(state.scaled_dataset.export_data([1],0)))
+        self.acq_func_gen1 = lambda state,kwargs : lambda x : self.acq_func1(state.obj_models[0].predict_values(x),state.obj_models[0].predict_variances(x),min(state.scaled_dataset.export_data([0],0)))[0][0]
+        self.acq_func_gen2 = lambda state,kwargs : lambda x : self.acq_func2(state.obj_models[1].predict_values(x),state.obj_models[1].predict_variances(x),min(state.scaled_dataset.export_data([1],0)))[0][0]
 
         self.r = None
-        self.X = None #TODO init this
-        self.W = None #TODO init this
+        self.state = state
+        self.X=None
+        self.W = None
 
 
 
@@ -121,33 +81,76 @@ class BiEGO(AcquisitionStrategy):
     def validate_config(self, state):
         pass
 
-    def get_pareto_front(state):
-        
+    def get_scaled_DoE(self):
+        Y=self.state.scaled_dataset.export_as_dict()["obj"]
+        D=self.state.scaled_dataset.export_as_dict()["x"]
+        print("Y",Y)
+        print("D",D)
+        return (D,Y)
+    
+    def get_pareto_front(self):
+        D,Y=self.get_scaled_DoE()
+        self.X = ParetoFront(D,Y)
+
+    def select_reference_point(self):
+        self.get_pareto_front()
+        J=len(self.X)
+        print("The Pareto front is of length",J)
+        D,Y=self.get_scaled_DoE()
+        X=self.X
+        W=self.W
+        if J>2:
+            #Select a point of the Pareto front relatively far from its neighbors
+            j=max((DistToNeighbors(Y[X[k-1]],Y[X[k]],Y[X[k+1]],W[X[k]]),k) for k in range(1,J-1))[1]
+            r=(Y[X[j+1]][0],Y[X[j-1]][1])
+        elif J==2:
+            j=1
+            r=(Y[X[1]][0],Y[X[0]][1])
+        elif J==1:
+            #TODO do this case
+            return None
+        else:
+            raise ValueError("The Pareto Front is empty")
+        self.W[X[j]]+=1
+        return r
 
     def get_infill(self, state):
+        print("n_calls",self.current_calls+1)
+        self.get_scaled_DoE()
+        self.get_pareto_front()
+
+        if self.current_calls == 0:
+            self.W = [0 for x in range(len(self.state.dataset.export_as_dict()["x"]))]
 
         #Init
         if self.current_calls < self.single_obj_max_calls:
+            print("Min(f1) phase")
             self.current_calls+=1
+            self.W.append(0)
             return self.get_infill_custom(state,self.acq_func_gen1)
         elif self.current_calls < 2*self.single_obj_max_calls:
+            print("Min(f2) phase")
             self.current_calls+=1
+            self.W.append(0)
             return self.get_infill_custom(state,self.acq_func_gen2)
 
         #Main loop
         else:
+            print("Bi-objective phase")
             if self.current_subcalls == 0 or self.current_subcalls == self.single_obj_max_calls:
                 self.current_subcalls = 0
-                r=(1,1) # Choose r
+                r=self.select_reference_point()
+                print("Choice of r:",r)
                 if self.soformulation=="Normalized":
-                    phi = lambda y: SingleObjectiveNormalized(y,r)
+                    self.phi = lambda y: SingleObjectiveNormalized(y,r)
                 elif self.soformulation=="Product":
-                    phi = lambda y: SingleObjectiveProduct(y,r)
+                    self.phi = lambda y: SingleObjectiveProduct(y,r)
                 else:
                     raise ValueError("Unknown single-objective formulation")
+            self.current_subcalls+=1
             self.current_calls+=1
-            self.current_calls+=1
-            return self.get_infill_custom(state,self.acq_func_gen3,{"phi":phi})
+            self.W.append(0)
+            return self.get_infill_custom(state,self.acq_func_gen3,phi=self.phi)
     
     def get_infill_custom(self,state,acq_func_gen,**kwargs):
         self.seed = state.iter
@@ -172,5 +175,6 @@ class BiEGO(AcquisitionStrategy):
         next_x = res.x
         infill = [next_x.reshape(1, -1)]
 
-        return infill
+        print("Yahaha!")
+        return [infill]
 
