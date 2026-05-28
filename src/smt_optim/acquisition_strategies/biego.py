@@ -121,6 +121,8 @@ class BiEGO(AcquisitionStrategy):
     def validate_config(self, state):
         pass
 
+    def get_pareto_front(state):
+        
 
     def get_infill(self, state):
 
