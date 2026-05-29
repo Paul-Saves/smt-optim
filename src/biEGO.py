@@ -599,8 +599,7 @@ def main():
 
     ax1.scatter([p[1][0] for p in pareto_points],[p[1][1] for p in pareto_points])
 
-    plt.savefig('my_plot.png')
-    print("Plot saved to my_plot.png")
+    plt.show()
 
 
 if __name__ == "__main__":

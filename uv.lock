@@ -982,10 +982,14 @@ version = "0.1.0"
 source = { virtual = "src" }
 dependencies = [
     { name = "scipy" },
+    { name = "smt" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "scipy", specifier = ">=1.17.1" }]
+requires-dist = [
+    { name = "scipy", specifier = ">=1.17.1" },
+    { name = "smt", specifier = ">=2.14.0" },
+]
 
 [[package]]
 name = "threadpoolctl"

@@ -137,8 +137,9 @@ def PositivePart(x):
 def init_bi_obj_cei(state,kwargs):
 
     phi=kwargs["phi"]
+    n_expectancy=kwargs.get("n_accuracy",1000)
 
-    def composite_expected_improvement(mu: float, s2: float, f_min: float, n_expectancy=1000) -> float:
+    def composite_expected_improvement(mu: float, s2: float, f_min: float, n_expectancy=n_expectancy) -> float:
         """
         Expected Improvement composite acquisition function.
 

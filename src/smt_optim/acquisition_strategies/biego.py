@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 from scipy import optimize as so, stats as stats
 
 import smt.design_space as ds
@@ -61,6 +62,7 @@ class BiEGO(AcquisitionStrategy):
         self.acq_func2 = kwargs.get("acq_func", log_ei) #Acquisition function for min(f2) (same for f2)
         self.acq_func_gen3 = kwargs.get("acq_func_bi", init_bi_obj_cei) #Composite acquisition function for min(f1,f2)
         self.n_start = kwargs.pop("n_start", 5)
+        self.n_accuracy = kwargs.pop("n_accuracy",1000)
         self.sp_method = kwargs.pop("sp_method", "Cobyla")
         self.sp_tol = kwargs.pop("sp_tol", np.sqrt(np.finfo(float).eps))
         self.soformulation=kwargs.pop("so_formulation","Product")
@@ -76,16 +78,17 @@ class BiEGO(AcquisitionStrategy):
         self.W = None
 
 
-
-
     def validate_config(self, state):
         pass
 
     def get_scaled_DoE(self):
         Y=self.state.scaled_dataset.export_as_dict()["obj"]
         D=self.state.scaled_dataset.export_as_dict()["x"]
-        print("Y",Y)
-        print("D",D)
+        return (D,Y)
+
+    def get_DoE(self):
+        Y=self.state.dataset.export_as_dict()["obj"]
+        D=self.state.dataset.export_as_dict()["x"]
         return (D,Y)
     
     def get_pareto_front(self):
@@ -95,7 +98,6 @@ class BiEGO(AcquisitionStrategy):
     def select_reference_point(self):
         self.get_pareto_front()
         J=len(self.X)
-        print("The Pareto front is of length",J)
         D,Y=self.get_scaled_DoE()
         X=self.X
         W=self.W
@@ -115,29 +117,30 @@ class BiEGO(AcquisitionStrategy):
         return r
 
     def get_infill(self, state):
-        print("n_calls",self.current_calls+1)
         self.get_scaled_DoE()
         self.get_pareto_front()
 
         if self.current_calls == 0:
             self.W = [0 for x in range(len(self.state.dataset.export_as_dict()["x"]))]
+            print("Min(f1) phase")
 
         #Init
         if self.current_calls < self.single_obj_max_calls:
-            print("Min(f1) phase")
             self.current_calls+=1
             self.W.append(0)
             return self.get_infill_custom(state,self.acq_func_gen1)
         elif self.current_calls < 2*self.single_obj_max_calls:
-            print("Min(f2) phase")
+            if self.current_calls==self.single_obj_max_calls:
+                print("Min(f2) phase")
             self.current_calls+=1
             self.W.append(0)
             return self.get_infill_custom(state,self.acq_func_gen2)
 
         #Main loop
         else:
-            print("Bi-objective phase")
             if self.current_subcalls == 0 or self.current_subcalls == self.single_obj_max_calls:
+                print("Bi-objective phase")
+                print("The Pareto front is of length", len(self.X))
                 self.current_subcalls = 0
                 r=self.select_reference_point()
                 print("Choice of r:",r)
@@ -150,7 +153,7 @@ class BiEGO(AcquisitionStrategy):
             self.current_subcalls+=1
             self.current_calls+=1
             self.W.append(0)
-            return self.get_infill_custom(state,self.acq_func_gen3,phi=self.phi)
+            return self.get_infill_custom(state,self.acq_func_gen3,phi=self.phi,n_accuracy=self.n_accuracy)
     
     def get_infill_custom(self,state,acq_func_gen,**kwargs):
         self.seed = state.iter
@@ -175,6 +178,16 @@ class BiEGO(AcquisitionStrategy):
         next_x = res.x
         infill = [next_x.reshape(1, -1)]
 
-        print("Yahaha!")
-        return [infill]
+        return infill
+    
+    def show_pareto_front(self):
+        self.get_pareto_front()
+        D,Y=self.get_DoE()
+        pareto_points = [(D[i],Y[i]) for i in self.X]
+        print(f"Number of points on the Pareto Front: {len(pareto_points)}")
+        
+        _,ax1=plt.subplots(1,1,figsize=(10, 10))
+        ax1.scatter([p[1][0] for p in pareto_points],[p[1][1] for p in pareto_points])
+
+        plt.show()
 

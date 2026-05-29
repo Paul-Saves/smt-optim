@@ -1,79 +1,81 @@
 from smt_optim.acquisition_strategies.biego import BiEGO
 
 import numpy as np
-from matplotlib import pyplot as plt
-from matplotlib.collections import LineCollection
-import math
 
 from smt_optim.core import Problem
 from smt_optim.surrogate_models.smt import SmtAutoModel
-from smt_optim.acquisition_strategies import MFSEGO
 from smt_optim.acquisition_strategies.multiobj import MultiObj
-from smt_optim.core import Sample
 from smt_optim.core import ObjectiveConfig, DriverConfig
 from smt_optim.core import Driver
-from smt_optim.utils.constraints import compute_rscv
 
-from custom_driver import CustomStopDriver
-
-def Fonseca_Fleming1(x):
-    return np.atleast_1d(1-np.exp(-np.sum((x-1/(np.sqrt(len(x))))**2)))
-
-def Fonseca_Fleming2(x):
-    return np.atleast_1d(1-np.exp(-np.sum((x+1/(np.sqrt(len(x))))**2)))
-
-f1=Fonseca_Fleming1
-f2=Fonseca_Fleming2
+from smt_optim.benchmarks.registry import list_problems
 
 bounds=np.array([[-4, 4],[-4,4]])
 
 surrogate=SmtAutoModel
 
-max_iter=40
+max_budget=100
 
-dim=2
+n_accuracy=1000
 
-n_init=2*dim+1
+L=list_problems(tags=["zdt"])
 
-strat_kwargs={}
+def run_benchmark(bproblem):
+    name=bproblem.name
+    print("Running BiEGO on benchmark problem",name)
+    num_dim=bproblem.num_dim
+    num_obj=bproblem.num_obj
+    num_cstr=bproblem.num_cstr
+    bounds=bproblem.bounds
+    objective=bproblem.objective
 
+    assert(num_obj==2)
+    assert(num_cstr==0)
 
-#Runs a default implementation of EGO on a bi-objective problem
-obj_config1 = ObjectiveConfig(
-    [f1],
-    type="minimize",
-    surrogate=surrogate,
-)
-
-obj_config2 = ObjectiveConfig(
-    [f2],
-    type="minimize",
-    surrogate=surrogate,
-)
-
-prob_definition = Problem(
-    obj_configs=[obj_config1,obj_config2],
-    design_space=bounds,            # problem bounds
-    costs=[1,1]
-)
-
-opt_config = DriverConfig(
-    max_iter = max_iter,
-    nt_init = n_init,
-    verbose = True,
-    scaling = True,
-    seed=42,
-)
-
-strategy_kwargs = {
-    "n_start":n_init
-}
-
-driver = Driver(prob_definition,opt_config,strategy=MultiObj)
-#state=driver.optimize()
-
-driver = Driver(prob_definition, opt_config, strategy=BiEGO)
+    f1=objective[0]
+    f2=objective[1]
 
 
-state = driver.optimize()
-print(state.export_as_dict())
+    n_init=2*num_dim+1
+
+    obj_config1 = ObjectiveConfig(
+        [f1],
+        type="minimize",
+        surrogate=surrogate,
+    )
+
+    obj_config2 = ObjectiveConfig(
+        [f2],
+        type="minimize",
+        surrogate=surrogate,
+    )
+
+    prob_definition = Problem(
+        obj_configs=[obj_config1,obj_config2],
+        design_space=bounds,            # problem bounds
+        costs=[1,1]
+    )
+
+
+    opt_config = DriverConfig(
+        max_iter = max_budget - n_init,
+        max_budget = max_budget,
+        nt_init = n_init,
+        verbose = True,
+        scaling = True,
+        seed=42,
+    )
+
+    strategy_kwargs = {
+        "n_start":n_init,
+        "n_accuracy":n_accuracy
+    }
+
+    driver = Driver(prob_definition, opt_config, strategy=BiEGO, strategy_kwargs=strategy_kwargs)
+
+
+    state = driver.optimize()
+    driver.strategy.show_pareto_front()
+
+for bproblem in L:
+    run_benchmark(bproblem)

@@ -6,4 +6,5 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "scipy>=1.17.1",
+    "smt>=2.14.0",
 ]
