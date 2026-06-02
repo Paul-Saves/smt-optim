@@ -10,15 +10,35 @@ from smt_optim.core import Driver
 
 from smt_optim.benchmarks.registry import list_problems
 
+import matplotlib.pyplot as plt
+
 bounds=np.array([[-4, 4],[-4,4]])
-
-surrogate=SmtAutoModel
-
-max_budget=100
 
 n_accuracy=1000
 
 L=list_problems(tags=["zdt"])
+
+surrogate=SmtAutoModel
+
+
+def get_DoE(state):
+    Y=state.dataset.export_as_dict()["obj"]
+    D=state.dataset.export_as_dict()["x"]
+    return (D,Y)
+
+def Dominates(p,q):
+    #Returns True if point p strictly dominates point q, else returns False
+    return (p[0]<q[0] and p[1]<q[1])
+
+def ParetoFront(D,Y):
+    #Given a DoE (D,Y), returns the list of indices of non-dominated points, sorted by ascending value of f1
+    t=len(D)
+    front=[]
+    for i in range(t):
+        if all([not Dominates(q,Y[i]) for q in Y]):
+            front.append((Y[i][0],i))
+    front.sort()
+    return [p[1] for p in front]
 
 def run_benchmark(bproblem):
     name=bproblem.name
@@ -35,7 +55,7 @@ def run_benchmark(bproblem):
     f1=objective[0]
     f2=objective[1]
 
-
+    max_budget=20*num_dim
     n_init=2*num_dim+1
 
     obj_config1 = ObjectiveConfig(
@@ -75,7 +95,25 @@ def run_benchmark(bproblem):
 
 
     state = driver.optimize()
-    driver.strategy.show_pareto_front()
+    return state
+
+
+data=[]
 
 for bproblem in L:
-    run_benchmark(bproblem)
+    state=run_benchmark(bproblem)
+    data.append((bproblem.name,state))
+
+_,axs=plt.subplots(3,3)
+
+for i in range(3):
+    for j in range(3):
+        index = i*3+j
+        D,Y=get_DoE(data[index][1])
+        pareto_points = [(D[i],Y[i]) for i in ParetoFront(D,Y)]
+        
+        ax=axs[i][j]
+        ax.scatter([p[1][0] for p in pareto_points],[p[1][1] for p in pareto_points])
+        ax.title.set_text(data[index][0])
+
+plt.show()

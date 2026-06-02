@@ -180,14 +180,3 @@ class BiEGO(AcquisitionStrategy):
 
         return infill
     
-    def show_pareto_front(self):
-        self.get_pareto_front()
-        D,Y=self.get_DoE()
-        pareto_points = [(D[i],Y[i]) for i in self.X]
-        print(f"Number of points on the Pareto Front: {len(pareto_points)}")
-        
-        _,ax1=plt.subplots(1,1,figsize=(10, 10))
-        ax1.scatter([p[1][0] for p in pareto_points],[p[1][1] for p in pareto_points])
-
-        plt.show()
-
