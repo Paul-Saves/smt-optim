@@ -19,6 +19,7 @@ from pymoo.operators.mutation.pm import PM
 from pymoo.operators.sampling.rnd import FloatRandomSampling
 from pymoo.optimize import minimize
 from pymoo.termination import get_termination
+from pymoo.indicators.igd_plus import IGDPlus
 
 bounds=np.array([[-4, 4],[-4,4]])
 
@@ -123,14 +124,14 @@ class PymooProblem(ElementwiseProblem):
 def run_benchmark_pymoo(bproblem):
     pymoo_problem=PymooProblem(bproblem)
     algorithm = NSGA2(
-        pop_size=100,
-        n_offsprings=25,
+        pop_size=1000,
+        n_offsprings=250,
         sampling=FloatRandomSampling(),
         crossover=SBX(prob=0.9, eta=15),
         mutation=PM(eta=20),
         eliminate_duplicates=True
     )
-    termination = get_termination("n_gen", 1000)
+    termination = get_termination("n_gen", 2000)
     res = minimize(pymoo_problem,
                 algorithm,
                 termination,
@@ -150,7 +151,8 @@ for bproblem in L:
     data.append((bproblem.name,state,X,F))
 
 
-_,axs=plt.subplots(3,3)
+fig,axs=plt.subplots(3,3)
+fig.set_size_inches(10,10)
 
 for i in range(3):
     for j in range(3):
@@ -163,9 +165,9 @@ for i in range(3):
 
         X,F=data[index][2],data[index][3]
         pareto_points_pymoo = [(X[i],F[i]) for i in ParetoFront(X,F)]
-        ax.scatter([p[1][0] for p in pareto_points_pymoo],[p[1][1] for p in pareto_points_pymoo])
+        ax.plot([p[1][0] for p in pareto_points_pymoo],[p[1][1] for p in pareto_points_pymoo],ls=":",color="red")
 
-        ax.title.set_text(data[index][0])
+        ax.title.set_text(f"{data[index][0]} IGD+: {round(IGDPlus(np.array([pareto_point[1] for pareto_point in pareto_points_pymoo])).do(np.array([pareto_point[1] for pareto_point in pareto_points])),5)}")
 
 plt.show()
 
