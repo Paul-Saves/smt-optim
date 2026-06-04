@@ -206,7 +206,7 @@ def StopConditionBigFront(state,config,D,Y,n):
         return False
     return True
 
-def SimpleBiEGO(F,D,Y,Ng,Ni,Ni0,bounds,soformulation="Normalized",show1D=False):
+def NaiveBiEGO(F,D,Y,Ng,Ni,Ni0,bounds,soformulation="Normalized",show1D=False):
     """
         Find the Pareto front of F:x->(f1(x),f2(x)), with the DoE D=[x1,...,xt] and Y=[F(x1),...,F(xt)],
         using at most Ng evaluations of F. Ni is the maximum number of calls used for any single EGO resolution
@@ -578,7 +578,7 @@ def main():
     D = [np.array([-1.0,0.0]),np.array([1.0,1.3]), np.array([0.1,-3.0])]
     Y = [F_target(x) for x in D]
     
-    pareto_points,state = SimpleBiEGO(
+    pareto_points,state = NaiveBiEGO(
         F=F_target,
         D=D,
         Y=Y,

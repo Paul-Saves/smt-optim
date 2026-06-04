@@ -20,6 +20,7 @@ from pymoo.operators.sampling.rnd import FloatRandomSampling
 from pymoo.optimize import minimize
 from pymoo.termination import get_termination
 from pymoo.indicators.igd_plus import IGDPlus
+from biEGO import NaiveBiEGO
 
 bounds=np.array([[-4, 4],[-4,4]])
 
@@ -106,6 +107,31 @@ def run_benchmark(bproblem):
     state = driver.optimize()
     return state
 
+def run_benchmark_naive(bproblem):
+    name=bproblem.name
+    print("Running BiEGO on benchmark problem",name)
+    num_dim=bproblem.num_dim
+    num_obj=bproblem.num_obj
+    num_cstr=bproblem.num_cstr
+    bounds=bproblem.bounds
+    objective=bproblem.objective
+
+    f1=objective[0]
+    f2=objective[1]
+
+    max_budget=20*num_dim
+    n_init=2*num_dim+1
+
+    F=lambda x: (f1(x),f2(x))
+    D=[np.atleast_1d([np.random.uniform(bounds[i][0],bounds[i][1]) for i in range(num_dim)]) for j in range(n_init)]
+    Y=[F(x) for x in D]
+    Ng=max_budget-n_init
+    Ni=5
+    Ni0=5
+    soformulation="Normalized"
+
+    return NaiveBiEGO(F,D,Y,Ng,Ni,Ni0,bounds,soformulation)
+
 class PymooProblem(ElementwiseProblem):
 
     def __init__(self,bprob):
@@ -131,7 +157,7 @@ def run_benchmark_pymoo(bproblem):
         mutation=PM(eta=20),
         eliminate_duplicates=True
     )
-    termination = get_termination("n_gen", 2000)
+    termination = get_termination("n_gen", 500)
     res = minimize(pymoo_problem,
                 algorithm,
                 termination,
@@ -147,8 +173,9 @@ data=[]
 
 for bproblem in L:
     state=run_benchmark(bproblem)
+    pareto_points_naive,state_naive=run_benchmark_naive(bproblem)
     X,F=run_benchmark_pymoo(bproblem)
-    data.append((bproblem.name,state,X,F))
+    data.append((bproblem.name,state,X,F,pareto_points_naive))
 
 
 fig,axs=plt.subplots(3,3)
@@ -161,13 +188,16 @@ for i in range(3):
 
         D,Y=get_DoE(data[index][1])
         pareto_points = [(D[i],Y[i]) for i in ParetoFront(D,Y)]
-        ax.scatter([p[1][0] for p in pareto_points],[p[1][1] for p in pareto_points])
+        ax.scatter([p[1][0] for p in pareto_points],[p[1][1] for p in pareto_points],color="blue")
+
+        pareto_points_naive=data[index][4]
+        ax.scatter([p[1][0] for p in pareto_points_naive],[p[1][1] for p in pareto_points_naive],color="orange")
 
         X,F=data[index][2],data[index][3]
         pareto_points_pymoo = [(X[i],F[i]) for i in ParetoFront(X,F)]
         ax.plot([p[1][0] for p in pareto_points_pymoo],[p[1][1] for p in pareto_points_pymoo],ls=":",color="red")
 
-        ax.title.set_text(f"{data[index][0]} IGD+: {round(IGDPlus(np.array([pareto_point[1] for pareto_point in pareto_points_pymoo])).do(np.array([pareto_point[1] for pareto_point in pareto_points])),5)}")
+        ax.title.set_text(f"{data[index][0]} IGD+: {round(IGDPlus(np.array([pareto_point[1] for pareto_point in pareto_points_pymoo])).do(np.array([pareto_point[1] for pareto_point in pareto_points])),5)} (biEGO), {round(IGDPlus(np.array([pareto_point[1] for pareto_point in pareto_points_pymoo])).do(np.array([pareto_point[1] for pareto_point in pareto_points_naive])),5)} (naive)")
 
 plt.show()
 

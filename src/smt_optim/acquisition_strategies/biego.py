@@ -74,7 +74,7 @@ class BiEGO(AcquisitionStrategy):
 
         self.r = None
         self.state = state
-        self.X=None
+        self.X = None
         self.W = None
 
 
@@ -117,6 +117,7 @@ class BiEGO(AcquisitionStrategy):
         return r
 
     def get_infill(self, state):
+        old_pareto_front=self.X
         self.get_scaled_DoE()
         self.get_pareto_front()
 
@@ -138,7 +139,7 @@ class BiEGO(AcquisitionStrategy):
 
         #Main loop
         else:
-            if self.current_subcalls == 0 or self.current_subcalls == self.single_obj_max_calls:
+            if self.current_subcalls == 0 or self.current_subcalls == self.single_obj_max_calls or old_pareto_front!=self.X :
                 print("Bi-objective phase")
                 print("The Pareto front is of length", len(self.X))
                 self.current_subcalls = 0
