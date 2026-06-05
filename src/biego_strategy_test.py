@@ -20,7 +20,7 @@ from pymoo.operators.sampling.rnd import FloatRandomSampling
 from pymoo.optimize import minimize
 from pymoo.termination import get_termination
 from pymoo.indicators.igd_plus import IGDPlus
-from biEGO import NaiveBiEGO
+from naiveBiEGO import NaiveBiEGO
 
 bounds=np.array([[-4, 4],[-4,4]])
 
@@ -109,10 +109,8 @@ def run_benchmark(bproblem):
 
 def run_benchmark_naive(bproblem):
     name=bproblem.name
-    print("Running BiEGO on benchmark problem",name)
+    print("Running naive BiEGO on benchmark problem",name)
     num_dim=bproblem.num_dim
-    num_obj=bproblem.num_obj
-    num_cstr=bproblem.num_cstr
     bounds=bproblem.bounds
     objective=bproblem.objective
 
@@ -157,7 +155,7 @@ def run_benchmark_pymoo(bproblem):
         mutation=PM(eta=20),
         eliminate_duplicates=True
     )
-    termination = get_termination("n_gen", 500)
+    termination = get_termination("n_gen", 200)
     res = minimize(pymoo_problem,
                 algorithm,
                 termination,
@@ -173,13 +171,47 @@ data=[]
 
 for bproblem in L:
     state=run_benchmark(bproblem)
-    pareto_points_naive,state_naive=run_benchmark_naive(bproblem)
+    pareto_points_naive,D_naive,Y_naive=run_benchmark_naive(bproblem)
     X,F=run_benchmark_pymoo(bproblem)
-    data.append((bproblem.name,state,X,F,pareto_points_naive))
+    data.append((bproblem.name,state,X,F,pareto_points_naive,D_naive,Y_naive))
 
 
 fig,axs=plt.subplots(3,3)
-fig.set_size_inches(10,10)
+fig.set_size_inches(20,14)
+
+for i in range(3):
+    for j in range(3):
+        index = i*3+j
+        ax=axs[i][j]
+
+        D,Y=get_DoE(data[index][1])
+        D_naive=data[index][5]
+        Y_naive=data[index][6]
+        X,F=data[index][2],data[index][3]
+        pareto_points_pymoo = [(X[i],F[i]) for i in ParetoFront(X,F)]
+
+
+        T=[i for i in range(len(D))]
+        IGD_ac=[]
+        IGD_naive=[]
+        for t in T:
+            pareto_points = [(D[i],Y[i]) for i in ParetoFront(D[:t+1],Y[:t+1])]
+            pareto_points_naive = [(D_naive[i],Y_naive[i]) for i in ParetoFront(D_naive[:t+1],Y_naive[:t+1])]
+            IGD_ac.append(IGDPlus(np.array([pareto_point[1] for pareto_point in pareto_points_pymoo])).do(np.array([pareto_point[1] for pareto_point in pareto_points])))
+            IGD_naive.append(IGDPlus(np.array([pareto_point[1] for pareto_point in pareto_points_pymoo])).do(np.array([pareto_point[1] for pareto_point in pareto_points_naive])))
+
+        ax.plot(T,IGD_ac,label="composite biEGO")
+        ax.plot(T,IGD_naive,label="naive biEGO")
+        ax.title.set_text(f"{data[index][0]}")
+        ax.legend(loc="best")
+        ax.set_xlabel("budget")
+        ax.set_ylabel("IGD+")
+
+plt.show()
+
+
+fig,axs=plt.subplots(3,3)
+fig.set_size_inches(20,14)
 
 for i in range(3):
     for j in range(3):
@@ -188,16 +220,19 @@ for i in range(3):
 
         D,Y=get_DoE(data[index][1])
         pareto_points = [(D[i],Y[i]) for i in ParetoFront(D,Y)]
-        ax.scatter([p[1][0] for p in pareto_points],[p[1][1] for p in pareto_points],color="blue")
+        ax.scatter([p[1][0] for p in pareto_points],[p[1][1] for p in pareto_points],color="blue",label="Composite acquisition function")
 
         pareto_points_naive=data[index][4]
-        ax.scatter([p[1][0] for p in pareto_points_naive],[p[1][1] for p in pareto_points_naive],color="orange")
+        ax.scatter([p[1][0] for p in pareto_points_naive],[p[1][1] for p in pareto_points_naive],color="green",label="Naive biEGO",marker="+")
 
         X,F=data[index][2],data[index][3]
         pareto_points_pymoo = [(X[i],F[i]) for i in ParetoFront(X,F)]
-        ax.plot([p[1][0] for p in pareto_points_pymoo],[p[1][1] for p in pareto_points_pymoo],ls=":",color="red")
+        ax.plot([p[1][0] for p in pareto_points_pymoo],[p[1][1] for p in pareto_points_pymoo],ls=":",color="red",label="Optimal Pareto front (pymoo)")
 
         ax.title.set_text(f"{data[index][0]} IGD+: {round(IGDPlus(np.array([pareto_point[1] for pareto_point in pareto_points_pymoo])).do(np.array([pareto_point[1] for pareto_point in pareto_points])),5)} (biEGO), {round(IGDPlus(np.array([pareto_point[1] for pareto_point in pareto_points_pymoo])).do(np.array([pareto_point[1] for pareto_point in pareto_points_naive])),5)} (naive)")
+        ax.legend(loc="best")
+        ax.set_xlabel("f1")
+        ax.set_ylabel("f2")
 
 plt.show()
 

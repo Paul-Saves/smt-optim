@@ -30,9 +30,6 @@ class CustomStopDriver(Driver):
         for condition, extra_args in self.stop_conditions:
             # We unpack the dictionary into the function call
             if not condition(self.state, self.config, **extra_args):
-                if self.config.verbose:
-                    name = getattr(condition, '__name__', str(condition))
-                    print(f"Termination triggered by: {name}")
                 return False
         
         return True

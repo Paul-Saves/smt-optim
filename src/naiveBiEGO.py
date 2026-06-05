@@ -212,7 +212,6 @@ def NaiveBiEGO(F,D,Y,Ng,Ni,Ni0,bounds,soformulation="Normalized",show1D=False):
         using at most Ng evaluations of F. Ni is the maximum number of calls used for any single EGO resolution
     """
     #Initialization
-    print("biEGO Step 1")
     t=len(D)
     W=[0]*t
     n_eval=0
@@ -232,15 +231,14 @@ def NaiveBiEGO(F,D,Y,Ng,Ni,Ni0,bounds,soformulation="Normalized",show1D=False):
     f2=lambda x:F_eval(x)[1]
 
     #Run EGO on the problems min(f1(x)) and min(f2(x))
-    print("Running MFSEGO on min(f1)")
+    print("Min(f1) phase")
     state=SimpleEGO(f1,bounds,D,[y[0] for y in Y],Ni0)
-    print("Running MFSEGO on min(f2)")
+    print("Min(f2) phase")
     state=SimpleEGO(f2,bounds,D,[y[1] for y in Y],Ni0)
     
     X=ParetoFront(D,Y)
 
     while n_eval<Ng:
-        print("biEGO Step 2")
         skip=False
         #1-Determine the reference point
         J=len(X)
@@ -254,16 +252,16 @@ def NaiveBiEGO(F,D,Y,Ng,Ni,Ni0,bounds,soformulation="Normalized",show1D=False):
             r=(Y[X[1]][0],Y[X[0]][1])
         elif J==1:
             #Run EGO on the problems min(f1(x)) and min(f2(x)) until there are at least two and 3 points in the Pareto front.
-            print("Running MFSEGO on min(f1)")
+            print("Min(f1) phase")
             state=SimpleEGO(f1,bounds,D,[y[0] for y in Y],Ni0,stop_conditions=[(StopConditionBigFront,{"D":D,"Y":Y,"n":2})])
-            print("Running MFSEGO on min(f2)")
+            print("Min(f2) phase")
             SimpleEGO(f2,bounds,D,[y[1] for y in Y],Ni0,stop_conditions=[(StopConditionBigFront,{"D":D,"Y":Y,"n":3})])
             skip=True
         else:
             raise ValueError("The Pareto Front is empty")
 
         if not skip:
-            print("biEGO step 3")
+            print("Bi-objective phase with r =",r)
             #2-Run EGO on the single-objective sub-problem
             if soformulation=="Normalized":
                 phi = lambda y: SingleObjectiveNormalized(y,r)
@@ -288,19 +286,16 @@ def NaiveBiEGO(F,D,Y,Ng,Ni,Ni0,bounds,soformulation="Normalized",show1D=False):
                 ax.scatter([Y[-1][0]],[Y[-1][1]],color="red")
                 plt.show()
 
-            print("Running MFSEGO on the single-objective subproblem")
             state=SimpleEGO(SubProblem,bounds,D,[phi(y) for y in Y],Ni,MFSEGO,surrogate=SmtAutoModel,stop_conditions=[(StopConditionChangeFront,{"D":D,"Y":Y,"X":X})])
 
             #3-Update Weights
-            print("biEGO step 4")
             W[X[j]]+=1
         
         #Update Pareto front
-        print("Updating Pareto front")
         X=ParetoFront(D,Y)
 
     X=ParetoFront(D,Y)
-    return ([(D[i],Y[i]) for i in X],state)
+    return ([(D[i],Y[i]) for i in X],D,Y)
 
 def AcBiEGO(F,D,Y,Ng,Ni,Ni0,bounds,soformulation="Normalized",show1D=False):
     """

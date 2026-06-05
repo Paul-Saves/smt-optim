@@ -140,11 +140,10 @@ class BiEGO(AcquisitionStrategy):
         #Main loop
         else:
             if self.current_subcalls == 0 or self.current_subcalls == self.single_obj_max_calls or old_pareto_front!=self.X :
-                print("Bi-objective phase")
                 print("The Pareto front is of length", len(self.X))
                 self.current_subcalls = 0
                 r=self.select_reference_point()
-                print("Choice of r:",r)
+                print("Bi-objective phase with r =",r)
                 if self.soformulation=="Normalized":
                     self.phi = lambda y: SingleObjectiveNormalized(y,r)
                 elif self.soformulation=="Product":
