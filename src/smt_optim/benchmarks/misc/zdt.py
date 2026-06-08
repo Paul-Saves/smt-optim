@@ -24,9 +24,15 @@ class ZDT1_D02(BenchmarkProblem):
         res = x[0]
         return res
     
-    def f2(self, x):
-        res = 1-np.sqrt(x[0]/(1+np.sum(x[1:])/(self.num_dim-1)))
+    def g(self,x):
+        return 1+9*np.sum(x[1:])/(self.num_dim-1)
+    
+    def h(self, x):
+        res = 1-np.sqrt(self.f1(x)/self.g(x))
         return res
+    
+    def f2(self,x):
+        return self.g(x)*self.h(x)
 
 class ZDT1_D05(BenchmarkProblem):
 
@@ -51,9 +57,15 @@ class ZDT1_D05(BenchmarkProblem):
         res = x[0]
         return res
     
-    def f2(self, x):
-        res = 1-np.sqrt(x[0]/(1+np.sum(x[1:])/(self.num_dim-1)))
+    def g(self,x):
+        return 1+9*np.sum(x[1:])/(self.num_dim-1)
+    
+    def h(self, x):
+        res = 1-np.sqrt(self.f1(x)/self.g(x))
         return res
+    
+    def f2(self,x):
+        return self.g(x)*self.h(x)
     
 class ZDT1_D10(BenchmarkProblem):
 
@@ -78,9 +90,15 @@ class ZDT1_D10(BenchmarkProblem):
         res = x[0]
         return res
     
-    def f2(self, x):
-        res = 1-np.sqrt(x[0]/(1+np.sum(x[1:])/(self.num_dim-1)))
+    def g(self,x):
+        return 1+9*np.sum(x[1:])/(self.num_dim-1)
+    
+    def h(self, x):
+        res = 1-np.sqrt(self.f1(x)/self.g(x))
         return res
+    
+    def f2(self,x):
+        return self.g(x)*self.h(x)
 
 class ZDT2_D02(BenchmarkProblem):
 
@@ -105,9 +123,15 @@ class ZDT2_D02(BenchmarkProblem):
         res = x[0]
         return res
     
-    def f2(self, x):
-        res = 1-(x[0]/(1+np.sum(x[1:])/(self.num_dim-1)))**2
+    def g(self,x):
+        return 1+9*np.sum(x[1:])/(self.num_dim-1)
+
+    def h(self, x):
+        res = 1-(x[0]/self.g(x))**2
         return res
+
+    def f2(self,x):
+        return self.g(x)*self.h(x)
     
 class ZDT2_D05(BenchmarkProblem):
 
@@ -132,9 +156,15 @@ class ZDT2_D05(BenchmarkProblem):
         res = x[0]
         return res
     
-    def f2(self, x):
-        res = 1-(x[0]/(1+np.sum(x[1:])/(self.num_dim-1)))**2
+    def g(self,x):
+        return 1+9*np.sum(x[1:])/(self.num_dim-1)
+
+    def h(self, x):
+        res = 1-(x[0]/self.g(x))**2
         return res
+
+    def f2(self,x):
+        return self.g(x)*self.h(x)
     
 class ZDT2_D10(BenchmarkProblem):
 
@@ -159,9 +189,15 @@ class ZDT2_D10(BenchmarkProblem):
         res = x[0]
         return res
     
-    def f2(self, x):
-        res = 1-(x[0]/(1+np.sum(x[1:])/(self.num_dim-1)))**2
+    def g(self,x):
+        return 1+9*np.sum(x[1:])/(self.num_dim-1)
+
+    def h(self, x):
+        res = 1-(x[0]/self.g(x))**2
         return res
+
+    def f2(self,x):
+        return self.g(x)*self.h(x)
 
 class ZDT3_D02(BenchmarkProblem):
 
@@ -186,9 +222,15 @@ class ZDT3_D02(BenchmarkProblem):
         res = x[0]
         return res
     
-    def f2(self, x):
-        res = 1-np.sqrt(x[0]/(1+np.sum(x[1:])/(self.num_dim-1)))-(x[0]/(1+np.sum(x[1:])/(self.num_dim-1)))*np.sin(10*np.pi*x[0])
+    def g(self,x):
+        return 1+9*np.sum(x[1:])/(self.num_dim-1)
+
+    def h(self, x):
+        res = 1-np.sqrt(x[0]/self.g(x))-(x[0]/self.g(x))*np.sin(10*np.pi*x[0])
         return res
+
+    def f2(self,x):
+        return self.g(x)*self.h(x)
 
 class ZDT3_D05(BenchmarkProblem):
 
@@ -213,9 +255,15 @@ class ZDT3_D05(BenchmarkProblem):
         res = x[0]
         return res
     
-    def f2(self, x):
-        res = 1-np.sqrt(x[0]/(1+np.sum(x[1:])/(self.num_dim-1)))-(x[0]/(1+np.sum(x[1:])/(self.num_dim-1)))*np.sin(10*np.pi*x[0])
+    def g(self,x):
+        return 1+9*np.sum(x[1:])/(self.num_dim-1)
+
+    def h(self, x):
+        res = 1-np.sqrt(x[0]/self.g(x))-(x[0]/self.g(x))*np.sin(10*np.pi*x[0])
         return res
+
+    def f2(self,x):
+        return self.g(x)*self.h(x)
 
 class ZDT3_D10(BenchmarkProblem):
 
@@ -240,6 +288,12 @@ class ZDT3_D10(BenchmarkProblem):
         res = x[0]
         return res
     
-    def f2(self, x):
-        res = 1-np.sqrt(x[0]/(1+np.sum(x[1:])/(self.num_dim-1)))-(x[0]/(1+np.sum(x[1:])/(self.num_dim-1)))*np.sin(10*np.pi*x[0])
+    def g(self,x):
+        return 1+9*np.sum(x[1:])/(self.num_dim-1)
+
+    def h(self, x):
+        res = 1-np.sqrt(x[0]/self.g(x))-(x[0]/self.g(x))*np.sin(10*np.pi*x[0])
         return res
+
+    def f2(self,x):
+        return self.g(x)*self.h(x)

@@ -38,7 +38,7 @@ def get_DoE(state):
 
 def Dominates(p,q):
     #Returns True if point p strictly dominates point q, else returns False
-    return (p[0]<q[0] and p[1]<q[1])
+    return (p[0]<q[0] and p[1]<=q[1]) or (p[0]<=q[0] and p[1]<q[1])
 
 def ParetoFront(D,Y):
     #Given a DoE (D,Y), returns the list of indices of non-dominated points, sorted by ascending value of f1
@@ -155,7 +155,7 @@ def run_benchmark_pymoo(bproblem):
         mutation=PM(eta=20),
         eliminate_duplicates=True
     )
-    termination = get_termination("n_gen", 200)
+    termination = get_termination("n_gen", 1000)
     res = minimize(pymoo_problem,
                 algorithm,
                 termination,
@@ -169,7 +169,7 @@ def run_benchmark_pymoo(bproblem):
 
 data=[]
 
-for bproblem in L:
+for bproblem in L[:1]:
     state=run_benchmark(bproblem)
     pareto_points_naive,D_naive,Y_naive=run_benchmark_naive(bproblem)
     X,F=run_benchmark_pymoo(bproblem)

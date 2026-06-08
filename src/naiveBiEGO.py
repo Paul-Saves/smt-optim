@@ -16,7 +16,7 @@ from custom_driver import CustomStopDriver
 
 def Dominates(p,q):
     #Returns True if point p strictly dominates point q, else returns False
-    return (p[0]<q[0] and p[1]<q[1])
+    return (p[0]<q[0] and p[1]<=q[1]) or (p[0]<=q[0] and p[1]<q[1])
 
 def ParetoFront(D,Y):
     #Given a DoE (D,Y), returns the list of indices of non-dominated points, sorted by ascending value of f1
