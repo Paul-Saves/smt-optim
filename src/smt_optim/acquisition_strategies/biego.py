@@ -143,6 +143,14 @@ class BiEGO(AcquisitionStrategy):
                 print("The Pareto front is of length", len(self.X))
                 self.current_subcalls = 0
                 r=self.select_reference_point()
+                if r==None:
+                    self.current_subcalls+=1
+                    self.current_calls+=1
+                    self.W.append(0)
+                    if self.current_calls%2:
+                        return self.get_infill_custom(state,self.acq_func_gen1)
+                    else:
+                        return self.get_infill_custom(state,self.acq_func_gen2)
                 print("Bi-objective phase with r =",r)
                 if self.soformulation=="Normalized":
                     self.phi = lambda y: SingleObjectiveNormalized(y,r)
