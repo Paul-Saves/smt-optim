@@ -61,14 +61,16 @@ class BiEGO(AcquisitionStrategy):
         self.acq_func1 = kwargs.get("acq_func", log_ei) #Acquisition function for min(f1) (to be modified to take only f1 as a parameter)
         self.acq_func2 = kwargs.get("acq_func", log_ei) #Acquisition function for min(f2) (same for f2)
         self.acq_func_gen3 = kwargs.get("acq_func_bi", init_bi_obj_cei) #Composite acquisition function for min(f1,f2)
-        self.n_start = kwargs.pop("n_start", 5)
+        self.n_multi_start = kwargs.pop("n_multi_start", 5)
         self.n_accuracy = kwargs.pop("n_accuracy",1000)
         self.sp_method = kwargs.pop("sp_method", "Cobyla")
         self.sp_tol = kwargs.pop("sp_tol", np.sqrt(np.finfo(float).eps))
         self.soformulation=kwargs.pop("so_formulation","Product")
         self.current_calls = 0
         self.current_subcalls = 0
-        self.single_obj_max_calls = kwargs.pop("single_obj_max_calls",5)
+        self.n_init = kwargs.pop("n_init",self.n_multi_start)
+        self.single_obj_max_calls = kwargs.pop("single_obj_max_calls",self.n_init)
+        self.min_max_calls = kwargs.pop("min_max_calls",self.n_init)
         self.acq_func_gen1 = lambda state,kwargs : lambda x : self.acq_func1(state.obj_models[0].predict_values(x),state.obj_models[0].predict_variances(x),min(state.scaled_dataset.export_data([0],0)))[0][0]
         self.acq_func_gen2 = lambda state,kwargs : lambda x : self.acq_func2(state.obj_models[1].predict_values(x),state.obj_models[1].predict_variances(x),min(state.scaled_dataset.export_data([1],0)))[0][0]
 
@@ -126,12 +128,12 @@ class BiEGO(AcquisitionStrategy):
             print("Min(f1) phase")
 
         #Init
-        if self.current_calls < self.single_obj_max_calls:
+        if self.current_calls < self.min_max_calls:
             self.current_calls+=1
             self.W.append(0)
             return self.get_infill_custom(state,self.acq_func_gen1)
-        elif self.current_calls < 2*self.single_obj_max_calls:
-            if self.current_calls==self.single_obj_max_calls:
+        elif self.current_calls < 2*self.min_max_calls:
+            if self.current_calls==self.min_max_calls:
                 print("Min(f2) phase")
             self.current_calls+=1
             self.W.append(0)
@@ -139,7 +141,7 @@ class BiEGO(AcquisitionStrategy):
 
         #Main loop
         else:
-            if self.current_subcalls == 0 or self.current_subcalls == self.single_obj_max_calls or old_pareto_front!=self.X :
+            if self.current_calls == 2*self.min_max_calls or self.current_subcalls == 0 or self.current_subcalls == self.single_obj_max_calls or old_pareto_front!=self.X :
                 print("The Pareto front is of length", len(self.X))
                 self.current_subcalls = 0
                 r=self.select_reference_point()
@@ -167,7 +169,7 @@ class BiEGO(AcquisitionStrategy):
         self.seed = state.iter
 
         sampler = stats.qmc.LatinHypercube(d=state.problem.num_dim, rng=state.iter)
-        multi_x0 = sampler.random(self.n_start)
+        multi_x0 = sampler.random(self.n_multi_start)
 
         ac_func = acq_func_gen(state,kwargs)
 
@@ -178,7 +180,8 @@ class BiEGO(AcquisitionStrategy):
         res = multistart_minimize(sp_wrapper,
                                     bounds=np.array([[0, 1]] * state.problem.num_dim),
                                     constraints=[],
-                                    n_start=self.n_start,
+                                    n_start=self.n_multi_start,
+                                    multi_x0=multi_x0,
                                     seed=self.seed,
                                     tol=self.sp_tol,
                                     method=self.sp_method, )

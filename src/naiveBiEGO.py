@@ -206,7 +206,7 @@ def StopConditionBigFront(state,config,D,Y,n):
         return False
     return True
 
-def NaiveBiEGO(F,D,Y,Ng,Ni,Ni0,bounds,soformulation="Normalized",show1D=False):
+def NaiveBiEGO(F,D,Y,Ng,Ni,Ni0,bounds,n_multistart=5,soformulation="Normalized",show1D=False):
     """
         Find the Pareto front of F:x->(f1(x),f2(x)), with the DoE D=[x1,...,xt] and Y=[F(x1),...,F(xt)],
         using at most Ng evaluations of F. Ni is the maximum number of calls used for any single EGO resolution
@@ -232,9 +232,9 @@ def NaiveBiEGO(F,D,Y,Ng,Ni,Ni0,bounds,soformulation="Normalized",show1D=False):
 
     #Run EGO on the problems min(f1(x)) and min(f2(x))
     print("Min(f1) phase")
-    state=SimpleEGO(f1,bounds,D,[y[0] for y in Y],Ni0)
+    state=SimpleEGO(f1,bounds,D,[y[0] for y in Y],Ni0,MFSEGO,strat_kwargs={"n_start":n_multistart})
     print("Min(f2) phase")
-    state=SimpleEGO(f2,bounds,D,[y[1] for y in Y],Ni0)
+    state=SimpleEGO(f2,bounds,D,[y[1] for y in Y],Ni0,MFSEGO,strat_kwargs={"n_start":n_multistart})
     
     X=ParetoFront(D,Y)
 
@@ -253,9 +253,9 @@ def NaiveBiEGO(F,D,Y,Ng,Ni,Ni0,bounds,soformulation="Normalized",show1D=False):
         elif J==1:
             #Run EGO on the problems min(f1(x)) and min(f2(x)) until there are at least two and 3 points in the Pareto front.
             print("Min(f1) phase")
-            state=SimpleEGO(f1,bounds,D,[y[0] for y in Y],Ni0,stop_conditions=[(StopConditionBigFront,{"D":D,"Y":Y,"n":2})])
+            state=SimpleEGO(f1,bounds,D,[y[0] for y in Y],Ni0,MFSEGO,strat_kwargs={"n_start":n_multistart},stop_conditions=[(StopConditionBigFront,{"D":D,"Y":Y,"n":2})])
             print("Min(f2) phase")
-            SimpleEGO(f2,bounds,D,[y[1] for y in Y],Ni0,stop_conditions=[(StopConditionBigFront,{"D":D,"Y":Y,"n":3})])
+            SimpleEGO(f2,bounds,D,[y[1] for y in Y],Ni0,MFSEGO,strat_kwargs={"n_start":n_multistart},stop_conditions=[(StopConditionBigFront,{"D":D,"Y":Y,"n":3})])
             skip=True
         else:
             raise ValueError("The Pareto Front is empty")
@@ -286,7 +286,7 @@ def NaiveBiEGO(F,D,Y,Ng,Ni,Ni0,bounds,soformulation="Normalized",show1D=False):
                 ax.scatter([Y[-1][0]],[Y[-1][1]],color="red")
                 plt.show()
 
-            state=SimpleEGO(SubProblem,bounds,D,[phi(y) for y in Y],Ni,MFSEGO,surrogate=SmtAutoModel,stop_conditions=[(StopConditionChangeFront,{"D":D,"Y":Y,"X":X})])
+            state=SimpleEGO(SubProblem,bounds,D,[phi(y) for y in Y],Ni,MFSEGO,strat_kwargs={"n_start":n_multistart},surrogate=SmtAutoModel,stop_conditions=[(StopConditionChangeFront,{"D":D,"Y":Y,"X":X})])
 
             #3-Update Weights
             W[X[j]]+=1
