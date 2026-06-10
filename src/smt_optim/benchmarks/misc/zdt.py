@@ -254,7 +254,7 @@ class ZDT3_D05(BenchmarkProblem):
     def f1(self, x):
         res = x[0]
         return res
-    
+
     def g(self,x):
         return 1+9*np.sum(x[1:])/(self.num_dim-1)
 

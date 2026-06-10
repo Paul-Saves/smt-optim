@@ -40,9 +40,9 @@ init_factor=2 # Initial DoE size: init_factor * dim + 1
 min_factor=2 # Initial calls to determine min(f1): min_factor * dim + 1 (same for min(f2))
 max_so_iter_factor=2 # Max calls to a single-objective subproblem: max_so_iter_factor * dim + 1
 soformulation_naive="Normalized"
-soformulation_composite="Normalized"
-multi_start_factor=10 # Number of multistart calls for acquisition function optimization: multi_start_factor * dim
-test_number=4
+soformulation_composite="Product"
+multi_start_factor=100 # Number of multistart calls for acquisition function optimization: multi_start_factor * dim
+test_number=0
 
 
 def get_DoE(state):

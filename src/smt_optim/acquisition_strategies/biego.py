@@ -17,7 +17,7 @@ from smt_optim.acquisition_functions.multi_obj import init_bi_obj_cei
 
 def Dominates(p,q):
     #Returns True if point p strictly dominates point q, else returns False
-    return (p[0]<q[0] and p[1]<q[1])
+    return (p[0]<=q[0] and p[1]<q[1]) or (p[0]<q[0] and p[1]<=q[1])
 
 def ParetoFront(D,Y):
     #Given a DoE (D,Y), returns the list of indices of non-dominated points, sorted by ascending value of f1
@@ -111,7 +111,6 @@ class BiEGO(AcquisitionStrategy):
             j=1
             r=(Y[X[1]][0],Y[X[0]][1])
         elif J==1:
-            #TODO do this case
             return None
         else:
             raise ValueError("The Pareto Front is empty")
@@ -120,7 +119,6 @@ class BiEGO(AcquisitionStrategy):
 
     def get_infill(self, state):
         old_pareto_front=self.X
-        self.get_scaled_DoE()
         self.get_pareto_front()
 
         if self.current_calls == 0:
