@@ -35,7 +35,7 @@ def PositivePart(x):
 def SingleObjectiveNormalized(y,r,s=None):
     if s==None:
         s=[1]*len(y)
-    return np.max((y[i]-r[i])/s[i] for i in range(len(y)))
+    return max((y[i]-r[i])/s[i] for i in range(len(y)))
 
 def SingleObjectiveProduct(y,r):
     #Returns a single objective product formulation of the problem

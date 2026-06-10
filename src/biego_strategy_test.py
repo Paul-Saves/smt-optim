@@ -35,14 +35,14 @@ a=3 # Set to 1 for testing, set to 3 for running Benchmark
 
 n_accuracy=100 # Precision on composite acquisition function
 seed=420 # Seed for generating the initial DoE
-budget_factor=30 # Budget: budget_factor * dim
+budget_factor=20 # Budget: budget_factor * dim
 init_factor=2 # Initial DoE size: init_factor * dim + 1
 min_factor=2 # Initial calls to determine min(f1): min_factor * dim + 1 (same for min(f2))
 max_so_iter_factor=2 # Max calls to a single-objective subproblem: max_so_iter_factor * dim + 1
 soformulation_naive="Normalized"
-soformulation_composite="Product"
+soformulation_composite="Normalized"
 multi_start_factor=10 # Number of multistart calls for acquisition function optimization: multi_start_factor * dim
-test_number=2.5
+test_number=4
 
 
 def get_DoE(state):
