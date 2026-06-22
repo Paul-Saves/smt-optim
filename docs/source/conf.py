@@ -15,7 +15,7 @@ from sphinx.highlighting import lexers
 from pygments.lexers import PythonLexer
 
 project = 'smt-optim'
-copyright = '2026, SMT Optim contributors'
+copyright = '2026, SMT-optim contributors'
 author = 'O. Cordelier'
 release = '0.0.1'
 

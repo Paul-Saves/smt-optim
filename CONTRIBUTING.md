@@ -1,6 +1,6 @@
-# Contributing to SMT-Optim
+# Contributing to SMT-optim
 
-Help in improving SMT-Optim is greatly appreciated. Here are some guidelines for contributing to this project.
+Help in improving SMT-optim is greatly appreciated. Here are some guidelines for contributing to this project.
 
 ## How to Contribute
 

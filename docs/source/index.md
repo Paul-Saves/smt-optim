@@ -1,10 +1,10 @@
-# SMT-Optim: A Python toolbox for constrained and multi-fidelity Bayesian optimization
+# SMT-optim: A Python toolbox for constrained and multi-fidelity Bayesian optimization
 
-SMT-Optim is an open-source Python package for Bayesian optimization developed for research applications. It is well suited to expensive-to-evaluate black-box problems that offer limited exploitable structure, such as derivative information. The package supports constrained and multi-fidelity global optimization for mixed-variable design spaces.
+SMT-optim is an open-source Python package for Bayesian optimization developed for research applications. It is well suited to expensive-to-evaluate black-box problems that offer limited exploitable structure, such as derivative information. The package supports constrained and multi-fidelity global optimization for mixed-variable design spaces.
 
 ## Cite us
 
-To cite SMT-Optim:
+To cite SMT-optim:
 
 ```bibtex
 @techreport{cordelier_etal_2026,
@@ -33,19 +33,19 @@ To cite SMT-Optim:
 
 ## Focus on constrained Bayesian optimization
 
-SMT-Optim supports both equality and inequality blackbox constraints. For each constraint, it builds a surrogate model and uses it during acquisition function optimization. The acquisition function can be optimized either with respect to the surrogate mean prediction or by penalizing it with the probability of feasibility. The SMT-Optim interface also allows users to define both lower and upper bounds for each black-box constraint.
+SMT-optim supports both equality and inequality blackbox constraints. For each constraint, it builds a surrogate model and uses it during acquisition function optimization. The acquisition function can be optimized either with respect to the surrogate mean prediction or by penalizing it with the probability of feasibility. The SMT-optim interface also allows users to define both lower and upper bounds for each black-box constraint.
 
 ## Focus on multi-fidelity
 
-SMT-Optim is designed for multi-fidelity optimization with hierarchical fidelity levels to reduce computational cost. The MFSEGO acquisition strategy judiciously selects low- and high-fidelity evaluations when sampling the blackbox functions. Currently, SMT-Optim offers two state-of-the-art multi-fidelity frameworks: MFSEGO for nested design spaces and VF-PI for non-nested design spaces. Both frameworks can be further customized with specific acquisition functions and framework-specific parameters.
+SMT-optim is designed for multi-fidelity optimization with hierarchical fidelity levels to reduce computational cost. The MFSEGO acquisition strategy judiciously selects low- and high-fidelity evaluations when sampling the blackbox functions. Currently, SMT-optim offers two state-of-the-art multi-fidelity frameworks: MFSEGO for nested design spaces and VF-PI for non-nested design spaces. Both frameworks can be further customized with specific acquisition functions and framework-specific parameters.
 
 ## Focus on mixed-variable
 
-SMT-Optim supports continuous, integer, and categorical variables. It relies on SMT's Design Space to define mixed-variable design spaces and on SMT's surrogate models to accurately represent the quantities of interest with respect to their input variables.
+SMT-optim supports continuous, integer, and categorical variables. It relies on SMT's Design Space to define mixed-variable design spaces and on SMT's surrogate models to accurately represent the quantities of interest with respect to their input variables.
 
 ## Focus on a modular framework
 
-SMT-Optim is designed to be modular, allowing users to swap components such as surrogate models, acquisition strategies, and acquisition functions while maintaining a consistent overall structure that is well suited to research benchmarking. The package also offers a straightforward interface through the `minimize` method, enabling seamless implementation and automatically selecting an appropriate optimization framework based on the characteristics of the problem.
+SMT-optim is designed to be modular, allowing users to swap components such as surrogate models, acquisition strategies, and acquisition functions while maintaining a consistent overall structure that is well suited to research benchmarking. The package also offers a straightforward interface through the `minimize` method, enabling seamless implementation and automatically selecting an appropriate optimization framework based on the characteristics of the problem.
 
 
 ```{toctree}
