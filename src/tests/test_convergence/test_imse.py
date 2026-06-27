@@ -6,7 +6,7 @@ import os
 
 from smt.surrogate_models import KRG
 from smt.sampling_methods import Random, LHS
-from smt_optim.acquisition_functions.integrated_mean_squared_error import vec_integrated_mean_squared_error
+from smt_optim.acquisition_functions.integrated_mean_squared_error import integrated_mean_squared_error
 from scipy.optimize import minimize
 
 class TestIMSEConvergence(unittest.TestCase):
@@ -18,7 +18,7 @@ class TestIMSEConvergence(unittest.TestCase):
         """
         np.random.seed(42)
         
-        # 3D objective function (Branin or simple polynomial)
+        # 3D objective function 
         def f(x):
             return np.sum((x - 0.5)**2, axis=1, keepdims=True)
         
@@ -46,7 +46,7 @@ class TestIMSEConvergence(unittest.TestCase):
         
         for run in range(n_runs):
             # 1. Initialize Random DoE with a deterministic seed for this run
-            sampling = Random(xlimits=xlimits, seed=42 + run)
+            sampling = Random(xlimits=xlimits, seed= 777 +int(run))
             xt = sampling(n_start)
             yt = f(xt)
             
@@ -60,9 +60,8 @@ class TestIMSEConvergence(unittest.TestCase):
                 
                 # Optimize IMSE
                 def obj(x):
-                    x_2d = np.array(x).reshape(1, -1)
-                    return vec_integrated_mean_squared_error(
-                        sm, x_2d, integration_points, inv_block=True
+                    return integrated_mean_squared_error(
+                        sm, np.atleast_2d(x), integration_points, inv_block=True
                     )[0, 0]
                     
                 best_x = None

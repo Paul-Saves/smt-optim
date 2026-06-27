@@ -114,55 +114,62 @@ def variance_update(model, point, x, inv_block=True):
     return np.maximum(MSE, 0.0)
 
 
-def integrated_mean_squared_error(model, point: np.ndarray, integration_points: np.ndarray, inv_block: bool = True) -> float:
+def integrated_mean_squared_error(model, points: np.ndarray, integration_points: np.ndarray = None, inv_block: bool = True) -> np.ndarray:
     """
     Integrated Mean Squared Error (IMSE) acquisition function.
+    Evaluates IMSE for one or multiple candidate points.
     
     Parameters
     ----------
     model : Surrogate
         The smt-optim surrogate model representing the objective function.
-    point : np.ndarray
-        Candidate point for enrichment, shape (1, num_dim).
-    integration_points : np.ndarray
+    points : np.ndarray
+        Candidate points for enrichment, shape (num_points, num_dim).
+    integration_points : np.ndarray, optional
         Monte-Carlo points for integration over the domain, shape (N_mc, num_dim).
+        If None, a 500-point LHS grid is automatically generated (requires model to have xlimits or infers from training points).
     inv_block : bool, optional
         Whether to use block matrix inversion (faster). Default True.
         
     Returns
     -------
-    float
-        The IMSE value (lower is better, represents the remaining integrated variance).
-    """
-    MSE = variance_update(model, point, integration_points, inv_block=inv_block)
-    return np.mean(MSE)
-
-def vec_integrated_mean_squared_error(model, points: np.ndarray, integration_points: np.ndarray, inv_block: bool = True) -> np.ndarray:
-    """
-    Vectorized Integrated Mean Squared Error (IMSE) acquisition function.
-    
-    Parameters
-    ----------
-    model : Surrogate
-        The smt-optim surrogate model.
-    points : np.ndarray
-        Candidate points for enrichment, shape (num_points, num_dim).
-    integration_points : np.ndarray
-        Monte-Carlo points for integration over the domain, shape (N_mc, num_dim).
-    inv_block : bool, optional
-        Whether to use block matrix inversion. Default True.
-        
-    Returns
-    -------
     np.ndarray
-        The IMSE values of shape (num_points, 1).
+        The IMSE values of shape (num_points, 1) (lower is better).
     """
-    imse_vals = np.zeros((points.shape[0], 1))
-    for i in range(points.shape[0]):
-        imse_vals[i, 0] = integrated_mean_squared_error(
-            model, 
-            points[i, :].reshape(1, -1), 
-            integration_points, 
-            inv_block=inv_block
-        )
+    if points.ndim == 1:
+        points = points.reshape(1, -1)
+        
+    smt_model = getattr(model, "model", model)
+    
+    if integration_points is None:
+        if hasattr(smt_model, "_default_integration_points"):
+            integration_points = smt_model._default_integration_points
+        else:
+            from smt.sampling_methods import LHS
+            xlimits = smt_model.options.get("xlimits")
+            
+            if xlimits is None:
+                # Fallback to bounding box of training points if xlimits is not set in the model
+                if hasattr(smt_model, "nlvl"):
+                    X_train = smt_model.training_points[None][0][0]
+                else:
+                    X_train = smt_model.training_points[None][0][0]
+                
+                xlimits = np.vstack((np.min(X_train, axis=0), np.max(X_train, axis=0))).T
+                import warnings
+                warnings.warn(
+                    "integration_points was not provided and model does not have 'xlimits'. "
+                    "Inferring domain bounds from training data, which may lead to inaccurate integration."
+                )
+                
+            integration_points = LHS(xlimits=xlimits, criterion='ese', seed=42)(500)
+            smt_model._default_integration_points = integration_points
+        
+    num_points = points.shape[0]
+    imse_vals = np.zeros((num_points, 1))
+    
+    for i in range(num_points):
+        MSE = variance_update(model, points[i:i+1, :], integration_points, inv_block=inv_block)
+        imse_vals[i, 0] = np.mean(MSE)
+        
     return imse_vals

@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 from smt.surrogate_models import KRG
-from smt_optim.acquisition_functions.integrated_mean_squared_error import integrated_mean_squared_error, vec_integrated_mean_squared_error
+from smt_optim.acquisition_functions.integrated_mean_squared_error import integrated_mean_squared_error
 
 class TestIMSEUnit(unittest.TestCase):
     def setUp(self):
@@ -23,28 +23,28 @@ class TestIMSEUnit(unittest.TestCase):
         
         imse_val = integrated_mean_squared_error(
             self.sm, 
-            point=x_cand, 
+            points=x_cand, 
             integration_points=self.x_mc, 
             inv_block=True
         )
         
-        self.assertIsInstance(imse_val, float)
-        self.assertGreaterEqual(imse_val, 0.0)
+        self.assertEqual(imse_val.shape, (1, 1))
+        self.assertGreaterEqual(imse_val[0, 0], 0.0)
         
         # Without block inversion
         imse_val_no_block = integrated_mean_squared_error(
             self.sm, 
-            point=x_cand, 
+            points=x_cand, 
             integration_points=self.x_mc, 
             inv_block=False
         )
-        self.assertAlmostEqual(imse_val, imse_val_no_block, places=3)
+        self.assertAlmostEqual(imse_val[0, 0], imse_val_no_block[0, 0], places=3)
 
     def test_vec_integrated_mean_squared_error(self):
         # Multiple candidate points
         x_cands = np.array([[0.25], [0.75]])
         
-        imse_vals = vec_integrated_mean_squared_error(
+        imse_vals = integrated_mean_squared_error(
             self.sm, 
             points=x_cands, 
             integration_points=self.x_mc, 
