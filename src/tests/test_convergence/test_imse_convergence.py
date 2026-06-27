@@ -34,8 +34,7 @@ class TestIMSEConvergence(unittest.TestCase):
         all_runs_entropies = np.zeros((n_runs, n_iters + 1))
         
         # We MUST use LHS for stable integration points for IMSE accuracy
-        np.random.seed(42)
-        integration_points = LHS(xlimits=xlimits, criterion='ese')(300)
+        integration_points = LHS(xlimits=xlimits, criterion='ese', seed=42)(300)
         
         def get_avg_1d_entropy(points):
             entropies = []
@@ -47,8 +46,7 @@ class TestIMSEConvergence(unittest.TestCase):
         
         for run in range(n_runs):
             # 1. Initialize Random DoE with a deterministic seed for this run
-            np.random.seed(42 + run)
-            sampling = Random(xlimits=xlimits)
+            sampling = Random(xlimits=xlimits, seed=42 + run)
             xt = sampling(n_start)
             yt = f(xt)
             
@@ -72,8 +70,7 @@ class TestIMSEConvergence(unittest.TestCase):
                 
                 # Multi-start optimization (5 random starts)
                 # Seed depends on run and iteration for deterministic variety
-                np.random.seed(100 + run * 100 + i)
-                starts = Random(xlimits=xlimits)(5)
+                starts = Random(xlimits=xlimits, seed=100 + run * 100 + i)(5)
                 for x0 in starts:
                     res = minimize(obj, x0=x0, bounds=bounds, method='L-BFGS-B')
                     if res.fun < best_val:
