@@ -32,12 +32,9 @@ def variance_update(model, point, x, inv_block=True):
         sigma2 = smt_model.optimal_par[-1]["sigma2"]
         theta = smt_model.optimal_theta[-1]
         # Only consider HF points for the model base
-        
-        # In MFK, we used name=lvl. The highest fidelity is nlvl-1.
-        # Fallback to None if not explicitly named by level (old behavior).
-        hf_key = smt_model.nlvl - 1 if (smt_model.nlvl - 1) in smt_model.training_points else None
-        
-        X_train_hf = smt_model.training_points[hf_key][0][0]
+        nt = smt_model.nt
+        # In MFK, training points are grouped by level. HF is None.
+        X_train_hf = smt_model.training_points[None][0][0]
         nt = len(X_train_hf)
         X_train = np.vstack([X_train_hf, point])
         Cn = smt_model.optimal_par[-1]["C"]
@@ -153,8 +150,7 @@ def integrated_mean_squared_error(model, points: np.ndarray, integration_points:
             if xlimits is None:
                 # Fallback to bounding box of training points if xlimits is not set in the model
                 if hasattr(smt_model, "nlvl"):
-                    hf_key = smt_model.nlvl - 1 if (smt_model.nlvl - 1) in smt_model.training_points else None
-                    X_train = smt_model.training_points[hf_key][0][0]
+                    X_train = smt_model.training_points[None][0][0]
                 else:
                     X_train = smt_model.training_points[None][0][0]
                 
