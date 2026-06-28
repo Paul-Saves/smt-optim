@@ -6,7 +6,6 @@ from smt.utils.misc import standardization
 def variance_update(model, point, x, inv_block=True):
     """
     Compute the "look-ahead" conditional variance after adding the new point to the model.
-    Adapted for smt-optim from Paul's SEGOMOE-toolbox implementation.
 
     Parameters
     ----------
@@ -14,7 +13,7 @@ def variance_update(model, point, x, inv_block=True):
         smt-optim surrogate model (must wrap an SMT Kriging/MFK model).
     point : np.ndarray
         Enrichment point (candidate).
-    x : np.ndarray
+    x : np.ndarray()
         Evaluation points (Monte-Carlo integration grid).
     inv_block : bool, optional
         Compute the augmented correlation matrix using block inversion. Default True.
