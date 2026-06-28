@@ -153,7 +153,8 @@ def integrated_mean_squared_error(model, points: np.ndarray, integration_points:
             if xlimits is None:
                 # Fallback to bounding box of training points if xlimits is not set in the model
                 if hasattr(smt_model, "nlvl"):
-                    X_train = smt_model.training_points[None][0][0]
+                    hf_key = smt_model.nlvl - 1 if (smt_model.nlvl - 1) in smt_model.training_points else None
+                    X_train = smt_model.training_points[hf_key][0][0]
                 else:
                     X_train = smt_model.training_points[None][0][0]
                 
