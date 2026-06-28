@@ -80,7 +80,7 @@ def variance_update(model, point, x, inv_block=True):
         if c2 <= 1e-6:
             # The point is already in the dataset (or numerically indistinguishable)
             # Its variance reduction is 0, so the variance remains sigma2
-            return np.ones(n_eval) * sigma2
+            return current_variance(model, x)
             
         c = np.sqrt(c2)
         
