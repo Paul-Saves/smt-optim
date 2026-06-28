@@ -6,7 +6,7 @@ import os
 
 from smt.surrogate_models import KRG
 from smt.sampling_methods import Random, LHS
-from smt_optim.acquisition_functions.integrated_mean_squared_error import integrated_mean_squared_error
+from smt_optim.acquisition_functions.integrated_variance_reduction import integrated_variance_reduction
 from scipy.optimize import minimize
 
 class TestIMSEConvergence(unittest.TestCase):
@@ -61,7 +61,7 @@ class TestIMSEConvergence(unittest.TestCase):
                 
                 # Optimize IMSE
                 def obj(x):
-                    return integrated_mean_squared_error(
+                    return -integrated_variance_reduction(
                         sm, np.atleast_2d(x), integration_points=integration_points, inv_block=True
                     )[0, 0]
                     

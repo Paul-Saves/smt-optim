@@ -115,10 +115,48 @@ def variance_update(model, point, x, inv_block=True):
     return np.maximum(MSE, 0.0)
 
 
-def integrated_mean_squared_error(model, points: np.ndarray, integration_points: np.ndarray = None, inv_block: bool = True) -> np.ndarray:
+def current_variance(model, x):
     """
-    Integrated Mean Squared Error (IMSE) acquisition function.
-    Evaluates IMSE for one or multiple candidate points.
+    Compute the conditional variance of the current model (without new points).
+    """
+    smt_model = getattr(model, "model", model)
+    n_eval = x.shape[0]
+
+    if hasattr(smt_model, "nlvl"):  # MFK
+        sigma2 = smt_model.optimal_par[-1]["sigma2"]
+        theta = smt_model.optimal_theta[-1]
+        nt = smt_model.nt
+        X_train = smt_model.training_points[None][0][0]
+        Cn = smt_model.optimal_par[-1]["C"]
+    else:  # KRG
+        sigma2 = smt_model.optimal_par["sigma2"]
+        theta = smt_model.optimal_theta
+        X_train = smt_model.training_points[None][0][0]
+        nt = smt_model.nt
+        Cn = smt_model.optimal_par["C"]
+
+    X_offset = smt_model.X_offset
+    X_scale = smt_model.X_scale
+    
+    X_normalized = (X_train - X_offset) / X_scale
+    x_normalized = (x - X_offset) / X_scale
+
+    dx = differences(x_normalized, X_normalized)
+    d = smt_model._componentwise_distance(dx)
+    smt_model.corr.theta = theta
+    r = smt_model.corr(d).reshape(n_eval, nt)
+
+    W = solve_triangular(Cn, r.T, lower=True)
+    res = np.sum(W**2, axis=0)
+    MSE = sigma2 * (1 - res)
+    return np.maximum(MSE, 0.0)
+
+
+def integrated_variance_reduction(model, points: np.ndarray, integration_points: np.ndarray = None, inv_block: bool = True) -> np.ndarray:
+    """
+    Integrated Variance Reduction (IVR) acquisition function.
+    Evaluates IVR for one or multiple candidate points.
+    Returns the absolute reduction in IMSE: |IMSE_current - IMSE_new|.
     
     Parameters
     ----------
@@ -135,7 +173,7 @@ def integrated_mean_squared_error(model, points: np.ndarray, integration_points:
     Returns
     -------
     np.ndarray
-        The IMSE values of shape (num_points, 1) (lower is better).
+        The IVR values of shape (num_points, 1) (higher is better).
     """
     if points.ndim == 1:
         points = points.reshape(1, -1)
@@ -150,7 +188,6 @@ def integrated_mean_squared_error(model, points: np.ndarray, integration_points:
             xlimits = smt_model.options.get("xlimits")
             
             if xlimits is None:
-                # Fallback to bounding box of training points if xlimits is not set in the model
                 if hasattr(smt_model, "nlvl"):
                     X_train = smt_model.training_points[None][0][0]
                 else:
@@ -167,10 +204,16 @@ def integrated_mean_squared_error(model, points: np.ndarray, integration_points:
             smt_model._default_integration_points = integration_points
         
     num_points = points.shape[0]
-    imse_vals = np.zeros((num_points, 1))
+    ivr_vals = np.zeros((num_points, 1))
+    
+    # Compute current IMSE once
+    imse_current = np.mean(current_variance(model, integration_points))
     
     for i in range(num_points):
-        MSE = variance_update(model, points[i:i+1, :], integration_points, inv_block=inv_block)
-        imse_vals[i, 0] = np.mean(MSE)
+        MSE_new = variance_update(model, points[i:i+1, :], integration_points, inv_block=inv_block)
+        imse_new = np.mean(MSE_new)
+        # We want to maximize the reduction (IMSE_current - IMSE_new).
+        # We take the absolute value as requested, though mathematically imse_current >= imse_new.
+        ivr_vals[i, 0] = np.abs(imse_current - imse_new)
         
-    return imse_vals
+    return ivr_vals

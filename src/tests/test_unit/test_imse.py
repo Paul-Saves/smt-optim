@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 from smt.surrogate_models import KRG
-from smt_optim.acquisition_functions.integrated_mean_squared_error import integrated_mean_squared_error
+from smt_optim.acquisition_functions.integrated_variance_reduction import integrated_variance_reduction
 
 class TestIMSEUnit(unittest.TestCase):
     def setUp(self):
@@ -17,11 +17,11 @@ class TestIMSEUnit(unittest.TestCase):
         # Integration points
         self.x_mc = np.linspace(0, 1, 50).reshape(-1, 1)
 
-    def test_integrated_mean_squared_error(self):
+    def test_integrated_variance_reduction(self):
         # Candidate point
         x_cand = np.array([[0.25]])
         
-        imse_val = integrated_mean_squared_error(
+        imse_val = integrated_variance_reduction(
             self.sm, 
             points=x_cand, 
             integration_points=self.x_mc, 
@@ -32,7 +32,7 @@ class TestIMSEUnit(unittest.TestCase):
         self.assertGreaterEqual(imse_val[0, 0], 0.0)
         
         # Without block inversion
-        imse_val_no_block = integrated_mean_squared_error(
+        imse_val_no_block = integrated_variance_reduction(
             self.sm, 
             points=x_cand, 
             integration_points=self.x_mc, 
@@ -40,11 +40,11 @@ class TestIMSEUnit(unittest.TestCase):
         )
         self.assertAlmostEqual(imse_val[0, 0], imse_val_no_block[0, 0], places=3)
 
-    def test_vec_integrated_mean_squared_error(self):
+    def test_vec_integrated_variance_reduction(self):
         # Multiple candidate points
         x_cands = np.array([[0.25], [0.75]])
         
-        imse_vals = integrated_mean_squared_error(
+        imse_vals = integrated_variance_reduction(
             self.sm, 
             points=x_cands, 
             integration_points=self.x_mc, 

@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 from smt.applications import MFK
-from smt_optim.acquisition_functions.integrated_mean_squared_error import integrated_mean_squared_error
+from smt_optim.acquisition_functions.integrated_variance_reduction import integrated_variance_reduction
 
 class TestIMSEIntegration(unittest.TestCase):
     def setUp(self):
@@ -25,7 +25,7 @@ class TestIMSEIntegration(unittest.TestCase):
         # Candidate point
         x_cand = np.array([[0.5]])
         
-        imse_val = integrated_mean_squared_error(
+        imse_val = integrated_variance_reduction(
             self.sm, 
             points=x_cand, 
             integration_points=self.x_mc, 
@@ -39,7 +39,7 @@ class TestIMSEIntegration(unittest.TestCase):
         # Multiple candidate points
         x_cands = np.array([[0.25], [0.75]])
         
-        imse_vals = integrated_mean_squared_error(
+        imse_vals = integrated_variance_reduction(
             self.sm, 
             points=x_cands, 
             integration_points=self.x_mc, 
