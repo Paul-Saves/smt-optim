@@ -77,8 +77,10 @@ def variance_update(model, point, x, inv_block=True):
         v = solve_triangular(Cn, rn_nu, lower=True)
         
         c2 = (1.0 + nugget) - np.sum(v**2)
-        if c2 <= 0.0:
-            c2 = 1e-14 
+        if c2 <= 1e-6:
+            # The point is already in the dataset (or numerically indistinguishable)
+            # Its variance reduction is 0, so the variance remains sigma2
+            return np.ones(n_eval) * sigma2
             
         c = np.sqrt(c2)
         
