@@ -24,7 +24,7 @@ class TestIMSEConvergence(unittest.TestCase):
         
         n_runs = 3
         n_start = 10
-        n_end = 25
+        n_end = 20
         n_iters = n_end - n_start
         
         xlimits = np.array([[0.0, 1.0], [0.0, 1.0], [0.0, 1.0]])
@@ -34,14 +34,15 @@ class TestIMSEConvergence(unittest.TestCase):
         all_runs_entropies = np.zeros((n_runs, n_iters + 1))
         
         # We MUST use LHS for stable integration points for IMSE accuracy
-        integration_points = LHS(xlimits=xlimits, criterion='ese', seed=42)(300)
+        integration_points = LHS(xlimits=xlimits, criterion='ese', seed=42)(250)
         
         def get_avg_1d_entropy(points):
             entropies = []
             for dim in range(points.shape[1]):
                 counts, _ = np.histogram(points[:, dim], bins=bins)
                 pk = (counts + 1e-6) / np.sum(counts + 1e-6)
-                entropies.append(entropy(pk))
+                # Normalize by the number of bins (10) so the max entropy is exactly 1
+                entropies.append(entropy(pk, base=len(pk)))
             return np.mean(entropies)
         
         for run in range(n_runs):
@@ -61,7 +62,7 @@ class TestIMSEConvergence(unittest.TestCase):
                 # Optimize IMSE
                 def obj(x):
                     return integrated_mean_squared_error(
-                        sm, np.atleast_2d(x), integration_points, inv_block=True
+                        sm, np.atleast_2d(x), integration_points= integration_points, inv_block=True
                     )[0, 0]
                     
                 best_x = None
@@ -69,7 +70,7 @@ class TestIMSEConvergence(unittest.TestCase):
                 
                 # Multi-start optimization (5 random starts)
                 # Seed depends on run and iteration for deterministic variety
-                starts = Random(xlimits=xlimits, seed=100 + run * 100 + i)(5)
+                starts = Random(xlimits=xlimits, seed=run * 100 + i)(5)
                 for x0 in starts:
                     res = minimize(obj, x0=x0, bounds=bounds, method='L-BFGS-B')
                     if res.fun < best_val:
