@@ -1,3 +1,4 @@
+#@autor Paul-Saves
 import numpy as np
 from scipy.linalg import solve_triangular
 from smt.utils.kriging import cross_distances, differences

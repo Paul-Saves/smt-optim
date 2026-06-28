@@ -1,3 +1,4 @@
+#@autor Paul-Saves
 import unittest
 import numpy as np
 from smt.applications import MFK
