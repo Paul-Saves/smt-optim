@@ -214,6 +214,6 @@ def integrated_variance_reduction(model, points: np.ndarray, integration_points:
         imse_new = np.mean(MSE_new)
         # We want to maximize the reduction (IMSE_current - IMSE_new).
         # We take the absolute value as requested, though mathematically imse_current >= imse_new.
-        ivr_vals[i, 0] = np.abs(imse_current - imse_new)
+        ivr_vals[i, 0] = imse_current - imse_new
         
     return ivr_vals
