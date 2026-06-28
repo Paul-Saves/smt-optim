@@ -46,10 +46,10 @@ def variance_update(model, point, x, inv_block=True):
         nt = smt_model.nt
         Cn = smt_model.optimal_par["C"]
 
-    # Standardization of data (Z-score normalization)
-    X_offset = np.mean(X_train, axis=0)
-    X_scale = np.std(X_train, axis=0, ddof=1) ** 2
-    X_scale[X_scale == 0] = 1e-12
+    # Standardization of data using the model's exact scaling
+    X_offset = smt_model.X_offset
+    X_scale = smt_model.X_scale
+    
     X_normalized = (X_train - X_offset) / X_scale
     x_normalized = (x - X_offset) / X_scale
 
