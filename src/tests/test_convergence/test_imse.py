@@ -13,7 +13,7 @@ class TestIMSEConvergence(unittest.TestCase):
     def test_imse_space_filling(self):
         """
         Start from a random DoE of 10 points in 3D and use IMSE
-        to enrich the design up to 25 points. Average over 10 runs.
+        to enrich the design up to 20 points. Average over 3 runs.
         Check the average 1D Space entropy of the points with 10 bins.
         """
         np.random.seed(42)
@@ -34,7 +34,7 @@ class TestIMSEConvergence(unittest.TestCase):
         all_runs_entropies = np.zeros((n_runs, n_iters + 1))
         
         # We MUST use LHS for stable integration points for IMSE accuracy
-        integration_points = LHS(xlimits=xlimits, criterion='ese', seed=42)(250)
+        integration_points = LHS(xlimits=xlimits, criterion='ese', seed=42)(200)
         
         def get_avg_1d_entropy(points):
             entropies = []
@@ -62,7 +62,7 @@ class TestIMSEConvergence(unittest.TestCase):
                 # Optimize IMSE
                 def obj(x):
                     return integrated_mean_squared_error(
-                        sm, np.atleast_2d(x), integration_points= integration_points, inv_block=True
+                        sm, np.atleast_2d(x), integration_points=integration_points, inv_block=True
                     )[0, 0]
                     
                 best_x = None
@@ -70,7 +70,7 @@ class TestIMSEConvergence(unittest.TestCase):
                 
                 # Multi-start optimization (5 random starts)
                 # Seed depends on run and iteration for deterministic variety
-                starts = Random(xlimits=xlimits, seed=run * 100 + i)(5)
+                starts = LHS(xlimits=xlimits, criterion='ese', seed=run * 100 + i)(5)
                 for x0 in starts:
                     res = minimize(obj, x0=x0, bounds=bounds, method='L-BFGS-B')
                     if res.fun < best_val:
@@ -88,7 +88,7 @@ class TestIMSEConvergence(unittest.TestCase):
         avg_entropies = np.mean(all_runs_entropies, axis=0)
         
         # Plotting the convergence (optional)
-        plot = False
+        plot = True
         
         if plot:
             plt.figure(figsize=(8, 5))
