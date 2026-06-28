@@ -203,13 +203,11 @@ class SmtAutoModel(Surrogate):
 
         if num_fidelity == 1:
             self.model = KRG(**model_kwargs)
+            self.model.set_training_values(xt[-1], yt[-1])
         else:
             self.model = MFK(**model_kwargs)
-
-            for lvl in range(num_fidelity-1):
+            for lvl in range(num_fidelity):
                 self.model.set_training_values(xt[lvl], yt[lvl], name=lvl)
-
-        self.model.set_training_values(xt[-1], yt[-1])
         self.model.train()
         self.train_counter += 1
 
@@ -406,10 +404,8 @@ class SmtMFCK(Surrogate):
 
         self.model = MFCK(print_global=False, n_start=3, hyper_opt="Cobyla", seed=42+self.train_counter)
 
-        for k in range(num_fidelity-1):
+        for k in range(num_fidelity):
             self.model.set_training_values(xt[k], yt[k], name=k)
-
-        self.model.set_training_values(xt[-1], yt[-1])
 
         self.model.train()
         self.train_counter += 1
