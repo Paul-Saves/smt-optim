@@ -7,6 +7,7 @@ from smt_optim.surrogate_models.smt import SmtAutoModel
 from smt_optim.acquisition_strategies.multiobj import MultiObj
 from smt_optim.core import ObjectiveConfig, DriverConfig
 from smt_optim.core import Driver
+from smt_optim.acquisition_strategies import MFSEGO
 
 from smt_optim.benchmarks.registry import list_problems
 
@@ -22,8 +23,10 @@ from pymoo.termination import get_termination
 from pymoo.indicators.igd_plus import IGDPlus
 from pymoo.core.callback import Callback
 from pymoo.indicators.hv import HV
+from pymoo.core.evaluator import Evaluator
+from pymoo.core.population import Population
 
-from naiveBiEGO import NaiveBiEGO
+from naiveBiEGO import NaiveBiEGO, InjectData, SimpleEGO
 from smt.sampling_methods import LHS
 import smt.design_space as ds
 import random
@@ -32,7 +35,7 @@ L=list_problems(tags=["zdt"])
 
 surrogate=SmtAutoModel
 
-a=1 # Set to 1 for testing, set to 3 for running Benchmark
+a=3 # Set to 1 for testing, set to 3 for running Benchmark
 
 # Parameters
 
@@ -68,7 +71,10 @@ def ParetoFront(D,Y):
     return [p[1] for p in front]
 
 def run_all_benchmarks(bproblem):
+    #Initialization
     name=bproblem.name
+    print("Running all benchmarks on problem",name)
+
     num_dim=bproblem.num_dim
     bounds=bproblem.bounds
     objective=bproblem.objective
@@ -87,7 +93,7 @@ def run_all_benchmarks(bproblem):
     design_space = ds.DesignSpace(float_vars)
 
     F=lambda x: (f1(x),f2(x))
-    #init DoE using seed and LHS
+    #init DoE using LHS with given seed
     sampler = LHS(xlimits=design_space.get_unfolded_num_bounds(),
                               criterion="ese",
                               seed=seed, )
@@ -97,19 +103,57 @@ def run_all_benchmarks(bproblem):
     Ni0=min_factor*num_dim+1
     Ng=max_budget-n_init-Ni0*2
     Ni=max_so_iter_factor*num_dim+1
-    Ni0=min_factor*num_dim+1
     soformulation=soformulation_naive
+    n_multistart=multi_start_factor*num_dim
+    initial_budget=Ni0*2+n_init
 
     #run min f1 and min f2
-    #TODO
+    #Initialization
+    t=len(D)
+    W=[0]*t
+    n_eval=0
 
-    run_benchmark(bproblem) # with DoE
-    NaiveBiEGO(F,D,Y,Ng,Ni,0,bounds,n_multistart=multi_start_factor*num_dim,soformulation=soformulation)
-    run_benchmark_pymoo(bproblem) # with DoE
+    def F_eval(x):
+        #This function is a substitute for F that automatically updates the global DoE and number of evals when called
+        nonlocal n_eval,D,Y,W
+        y=F(x)
+        D.append(x)
+        Y.append(y)
+        W.append(0)
+        n_eval+=1
+        return y
+    
+    #Coordinate applications of f
+    fa=lambda x:F_eval(x)[0]
+    fb=lambda x:F_eval(x)[1]
+
+    #Run EGO on the problems min(f1(x)) and min(f2(x))
+    print("Min(f1) phase")
+    state=SimpleEGO(fa,bounds,D,[y[0] for y in Y],Ni0,MFSEGO,strat_kwargs={"n_start":n_multistart})
+    print("Min(f2) phase")
+    state=SimpleEGO(fb,bounds,D,[y[1] for y in Y],Ni0,MFSEGO,strat_kwargs={"n_start":n_multistart})
+    
+    X=ParetoFront(D,Y)
+
+    #D and Y are initialized
+
+    #biego benchmark
+    state_biego = run_benchmark(bproblem,D[:initial_budget],Y[:initial_budget])
+
+    #naive benchmark
+    pareto_points_naive,D_naive,Y_naive = NaiveBiEGO(F,D[:initial_budget],Y[:initial_budget],Ng,Ni,0,bounds,n_multistart=multi_start_factor*num_dim,soformulation=soformulation)
+    
+    #pymoo_benchmark
+    X2,F2 = run_benchmark_pymoo_with_budget(bproblem,D[:initial_budget],Y[:initial_budget])
+
+    #True Front
+    X,F = run_benchmark_pymoo(bproblem)
+
+    return state_biego,pareto_points_naive,D_naive,Y_naive,X,F,X2,F2
 
 
 
-def run_benchmark(bproblem):
+def run_benchmark(bproblem,D,Y):
     name=bproblem.name
     print("Running BiEGO on benchmark problem",name)
     num_dim=bproblem.num_dim
@@ -149,9 +193,9 @@ def run_benchmark(bproblem):
 
 
     opt_config = DriverConfig(
-        max_iter = max_budget - n_init,
+        max_iter = max_budget - n_init-2*n_min,
         max_budget = max_budget,
-        nt_init = n_init,
+        nt_init = n_init+2*n_min,
         verbose = True,
         scaling = True,
         seed=seed,
@@ -159,15 +203,19 @@ def run_benchmark(bproblem):
 
     strategy_kwargs = {
         "n_multi_start":multi_start_factor*num_dim,
-        "n_init":n_init,
+        "n_init":0,
         "n_accuracy":n_accuracy,
         "so_formulation":soformulation_composite,
         "single_objective_max_calls":n_so,
-        "min_max_calls":n_min
+        "min_max_calls":0
     }
+
+    xt_init = np.vstack([np.atleast_1d(x) for x in D])
+    yt_init = np.vstack([np.atleast_1d(y) for y in Y])
 
     driver = Driver(prob_definition, opt_config, strategy=BiEGO, strategy_kwargs=strategy_kwargs)
 
+    InjectData(driver.state, xt_init, yt_init)
 
     state = driver.optimize()
     return state
@@ -243,36 +291,54 @@ def run_benchmark_pymoo(bproblem):
     F = res.F
     return (X,F)
 
-def run_benchmark_pymoo_with_budget(bproblem):
+def run_benchmark_pymoo_with_budget(bproblem,D,Y):
     num_dim=bproblem.num_dim
+    n_init=init_factor*num_dim+1
+    n_i=min_factor*num_dim+1
+    budget=budget_factor*num_dim-n_init-2*n_i
     pymoo_problem=PymooProblem(bproblem)
+
+    X = np.array([x.tolist() for x in D])
+    pop = Population.new("X", X)
+    Evaluator().eval(pymoo_problem, pop)
+
+    all_evaluated_X = [np.array([ind.X for ind in pop])]
+    all_evaluated_F = [np.array([ind.F for ind in pop])]
+
+
     algorithm = NSGA2(
         pop_size=budget_factor,
-        n_offsprings=budget_factor,
-        sampling=FloatRandomSampling(),
+        n_offsprings=1,
+        sampling=pop,
         crossover=SBX(prob=0.9, eta=15),
         mutation=PM(eta=20),
-        eliminate_duplicates=True
+        eliminate_duplicates=True,
     )
-    termination = get_termination("n_gen", num_dim)
+
+
+    termination = get_termination("n_gen", budget)
     res = minimize(pymoo_problem,
                 algorithm,
                 termination,
                 seed=1,
                 save_history=True,
                 verbose=True)
+    
+    for algorithm_state in res.history:
+        offspring = algorithm_state.off
+        if offspring is not None and len(offspring) > 0:
+            all_evaluated_X.append(offspring.get("X"))
+            all_evaluated_F.append(offspring.get("F"))
+    
+    historical_X = np.vstack(all_evaluated_X)
+    historical_F = np.vstack(all_evaluated_F)
 
-    X = res.X
-    F = res.F
-    return (X,F)
+    return (historical_X, historical_F)
 
 data=[]
 
 for bproblem in L[:a**2]:
-    state=run_benchmark(bproblem)
-    pareto_points_naive,D_naive,Y_naive=run_benchmark_naive(bproblem)
-    X,F=run_benchmark_pymoo(bproblem)
-    X2,F2=run_benchmark_pymoo_with_budget(bproblem)
+    state,pareto_points_naive,D_naive,Y_naive,X,F,X2,F2=run_all_benchmarks(bproblem)
     data.append((bproblem.name,state,X,F,pareto_points_naive,D_naive,Y_naive,X2,F2))
 
 print(f"Test {test_number}: n_accuracy = {n_accuracy}, seed = {seed}, budget = {budget_factor} * dim, n_init = {init_factor} * dim + 1, n_min = {min_factor} * dim + 1, n_single_objective_max = {max_so_iter_factor} * dim + 1, n_multistart = {multi_start_factor} * dim, single-objective formulation = {soformulation_composite} for composite, {soformulation_naive} for naive")
@@ -283,6 +349,7 @@ fig.set_size_inches(20,14)
 for i in range(a):
     for j in range(a):
         index = i*3+j
+        num_dim=L[index].num_dim
         ax=axs[i][j]
 
         D,Y=get_DoE(data[index][1])
@@ -290,19 +357,23 @@ for i in range(a):
         Y_naive=data[index][6]
         X,F=data[index][2],data[index][3]
         pareto_points_pymoo = [(X[i],F[i]) for i in ParetoFront(X,F)]
+        X2,F2 = data[index][7],data[index][8]
 
-
-        T=[i for i in range(len(D))]
+        T=[i for i in range(init_factor*num_dim+1+2*(min_factor*num_dim+1),len(D))]
         IGD_ac=[]
         IGD_naive=[]
+        IGD_pymoo_budget=[]
         for t in T:
             pareto_points = [(D[i],Y[i]) for i in ParetoFront(D[:t+1],Y[:t+1])]
+            pareto_points_pymoo_budget = [(X2[i],F2[i]) for i in ParetoFront(X2[:t+1],F2[:t+1])]
             pareto_points_naive = [(D_naive[i],Y_naive[i]) for i in ParetoFront(D_naive[:t+1],Y_naive[:t+1])]
             IGD_ac.append(IGDPlus(np.array([pareto_point[1] for pareto_point in pareto_points_pymoo])).do(np.array([pareto_point[1] for pareto_point in pareto_points])))
+            IGD_pymoo_budget.append(IGDPlus(np.array([pareto_point[1] for pareto_point in pareto_points_pymoo])).do(np.array([pareto_point[1] for pareto_point in pareto_points_pymoo_budget])))
             IGD_naive.append(IGDPlus(np.array([pareto_point[1] for pareto_point in pareto_points_pymoo])).do(np.array([pareto_point[1] for pareto_point in pareto_points_naive])))
 
         ax.semilogy(T,IGD_ac,label="composite biEGO")
         ax.semilogy(T,IGD_naive,label="naive biEGO")
+        ax.semilogy(T,IGD_pymoo_budget,label="pymoo")
         ax.title.set_text(f"{data[index][0]}")
         ax.legend(loc="best")
         ax.set_xlabel("budget")
@@ -316,6 +387,7 @@ fig.set_size_inches(20,14)
 for i in range(a):
     for j in range(a):
         index = i*3+j
+        num_dim=L[index].num_dim
         ax=axs[i][j]
 
         D,Y=get_DoE(data[index][1])
@@ -323,20 +395,25 @@ for i in range(a):
         Y_naive=data[index][6]
         X,F=data[index][2],data[index][3]
         pareto_points_pymoo = [(X[i],F[i]) for i in ParetoFront(X,F)]
+        X2,F2 = data[index][7],data[index][8]
 
 
-        T=[i for i in range(len(D))]
+        T=[i for i in range(init_factor*num_dim+1+2*(min_factor*num_dim+1),len(D))]
         HV_ac=[]
         HV_naive=[]
+        HV_pymoo_budget=[]
         ref_point=np.array([1,1])
         for t in T:
             pareto_points = [(D[i],Y[i]) for i in ParetoFront(D[:t+1],Y[:t+1])]
+            pareto_points_pymoo_budget = [(X2[i],F2[i]) for i in ParetoFront(X2[:t+1],F2[:t+1])]
             pareto_points_naive = [(D_naive[i],Y_naive[i]) for i in ParetoFront(D_naive[:t+1],Y_naive[:t+1])]
             HV_ac.append(HV(ref_point=ref_point).do(np.array([pareto_point[1] for pareto_point in pareto_points])))
+            HV_pymoo_budget.append(HV(ref_point=ref_point).do(np.array([pareto_point[1] for pareto_point in pareto_points_pymoo_budget])))
             HV_naive.append(HV(ref_point=ref_point).do(np.array([pareto_point[1] for pareto_point in pareto_points_naive])))
 
         ax.plot(T,HV_ac,label="composite biEGO")
         ax.plot(T,HV_naive,label="naive biEGO")
+        ax.plot(T,HV_pymoo_budget,label="pymoo")
         ax.title.set_text(f"{data[index][0]}")
         ax.legend(loc="best")
         ax.set_xlabel("budget")
