@@ -344,6 +344,10 @@ def init_bi_obj_ei_cf(state, kwargs=None):
     obj_vals = data["obj"][valid_mask, :]
     f_min = np.min(phi(obj_vals))
 
+    # Pre-sample standard normal variables for Monte Carlo integration
+    # This makes the acquisition function deterministic during optimization
+    Z_fixed = np.random.randn(1, n_expectancy, 2)
+
     def ei_cf(x_pred: np.ndarray) -> np.ndarray:
         s0_sq = models[0].predict_variances(x_pred)
         s1_sq = models[1].predict_variances(x_pred)
@@ -355,11 +359,53 @@ def init_bi_obj_ei_cf(state, kwargs=None):
         y1 = models[1].predict_values(x_pred)
         mu = np.hstack([y0, y1])
 
-        N = mu.shape[0]
-        Z = np.random.randn(N, n_expectancy, 2)
-        samples = mu[:, None, :] + s[:, None, :] * Z
+        samples = mu[:, None, :] + s[:, None, :] * Z_fixed
         phi_vals = phi(samples)
         ei = np.mean(np.maximum(f_min - phi_vals, 0.0), axis=1)
         return ei.reshape(-1, 1)
 
     return ei_cf
+
+
+def init_bi_obj_ei_naive(state, kwargs=None):
+    """
+    Initialize the Expected Improvement using a Naive approach for Composite Functions.
+    This trains a new surrogate model directly on the evaluated composite function values.
+    """
+    from smt_optim.acquisition_functions import log_ei
+    import numpy as np
+
+    phi = kwargs["phi"]
+    data = state.scaled_dataset.export_as_dict()
+    xt = data["x"]
+    yt = data["obj"]
+    y_phi = phi(yt).reshape(-1, 1)
+
+    fidelity = data["fidelity"]
+    xt_list = []
+    y_phi_list = []
+    for lvl in range(state.problem.num_fidelity):
+        mask = (fidelity == lvl).ravel()
+        xt_list.append(xt[mask, :])
+        y_phi_list.append(y_phi[mask].reshape(-1, 1))
+
+    kwargs_surrogate = state.problem.obj_configs[0].surrogate_kwargs
+    if kwargs_surrogate is None:
+        kwargs_surrogate = {}
+
+    model = state.obj_models[0].__class__(
+        design_space=state.problem.design_space, **kwargs_surrogate
+    )
+    model.train(xt_list, y_phi_list)
+
+    valid_mask = data["rscv"] <= 0.0
+    if not np.any(valid_mask):
+        valid_mask = data["rscv"] == np.min(data["rscv"])
+    f_min = np.min(y_phi[valid_mask])
+
+    def ei_naive(x_pred: np.ndarray) -> np.ndarray:
+        return log_ei(
+            model.predict_values(x_pred), model.predict_variances(x_pred), f_min
+        )
+
+    return ei_naive

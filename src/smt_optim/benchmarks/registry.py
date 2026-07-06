@@ -21,6 +21,10 @@ from .misc import misc2
 from .misc import weldedbeam_variants
 
 
+from .multi_obj import constrained as mo_constrained
+from .multi_obj import zdt_mf
+from .multi_obj import zdt
+
 available = {}
 
 
@@ -46,6 +50,11 @@ _register_from_module(mf_colville)
 _register_from_module(mf_borehole)
 _register_from_module(misc2)
 _register_from_module(weldedbeam_variants)
+
+
+_register_from_module(zdt)
+_register_from_module(zdt_mf)
+_register_from_module(mo_constrained)
 
 
 # def list_problems(**criteria):

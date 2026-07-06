@@ -316,3 +316,126 @@ def gamma_spread(pf: np.ndarray) -> float:
     if len(distances) == 0:
         return np.nan
     return float(np.max(distances))
+
+
+def plot_pareto_front(
+    initial_dataset,
+    final_dataset,
+    filename="pareto_front.png",
+    title="Pareto Front of ZDT1 (2D) obtained with SMT-optim",
+):
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    # 1. True Pareto Front (ZDT1 specific)
+    f1_true = np.linspace(0, 1, 100)
+    f2_true = 1 - np.sqrt(f1_true)
+
+    # 2. Extract objectives
+    initial_dict = initial_dataset.export_as_dict()
+    final_dict = final_dataset.export_as_dict()
+
+    f1_init = initial_dict["obj"][:, 0]
+    f2_init = initial_dict["obj"][:, 1]
+
+    f1_final_all = final_dict["obj"][:, 0]
+    f2_final_all = final_dict["obj"][:, 1]
+
+    # Get pareto front of all final points
+    all_obj = np.vstack([f1_final_all, f2_final_all]).T
+    pareto_mask = get_pareto_mask(all_obj)
+
+    n_init = len(f1_init)
+
+    # Infills
+    f1_infill = f1_final_all[n_init:]
+    f2_infill = f2_final_all[n_init:]
+    infill_obj = np.vstack([f1_infill, f2_infill]).T
+
+    # We want PF of all final points
+    # But we want to distinguish dominated and non-dominated INFILLS
+    infill_pareto_mask = pareto_mask[n_init:]
+
+    # Dominated infills
+    f1_dominated = infill_obj[~infill_pareto_mask, 0]
+    f2_dominated = infill_obj[~infill_pareto_mask, 1]
+
+    # PF infills (non-dominated infills)
+    f1_pf = infill_obj[infill_pareto_mask, 0]
+    f2_pf = infill_obj[infill_pareto_mask, 1]
+
+    # Sort them for plotting a connected line
+    idx = np.argsort(f1_pf)
+    f1_pf = f1_pf[idx]
+    f2_pf = f2_pf[idx]
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+
+    # Plot True PF
+    ax.plot(f1_true, f2_true, "k-", label="Ref PF", linewidth=2)
+
+    # Plot Initial DoE
+    ax.plot(
+        f1_init,
+        f2_init,
+        "go",
+        label="Initial DoE",
+        markersize=5,
+        linestyle="None",
+        alpha=0.7,
+    )
+
+    # Plot Final DoE (dominated)
+    ax.plot(
+        f1_dominated,
+        f2_dominated,
+        "bo",
+        label="Final DoE",
+        markersize=5,
+        linestyle="None",
+        alpha=0.7,
+    )
+
+    # Plot PF infills
+    ax.plot(f1_pf, f2_pf, "r:d", label="PF infills", markersize=8)
+
+    ax.set_xlabel("$f_1$")
+    ax.set_ylabel("$f_2$")
+    ax.set_title(title)
+    ax.legend()
+    ax.grid(True, linestyle="--", alpha=0.6)
+
+    plt.savefig(filename, dpi=300, bbox_inches="tight")
+    plt.close()
+
+
+def plot_hypervolume_convergence(
+    hv_history: list[float],
+    filename: str = "hypervolume_convergence.png",
+    title: str = "Hypervolume Convergence",
+):
+    """
+    Plots the hypervolume evolution over iterations.
+
+    Parameters
+    ----------
+    hv_history : list of float
+        Hypervolume value at each iteration.
+    filename : str
+        The output image file name.
+    title : str
+        The title of the plot.
+    """
+    import matplotlib.pyplot as plt
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    iterations = np.arange(len(hv_history))
+    ax.plot(iterations, hv_history, "b-o", linewidth=2, markersize=6)
+
+    ax.set_xlabel("Iterations")
+    ax.set_ylabel("Hypervolume")
+    ax.set_title(title)
+    ax.grid(True, linestyle="--", alpha=0.6)
+
+    plt.savefig(filename, dpi=300, bbox_inches="tight")
+    plt.close()
