@@ -56,6 +56,16 @@ class TestBiAcquisition(unittest.TestCase):
             with self.assertRaises(ValueError):
                 bi_acquisition(x)
 
+        # (2, 2) output must not silently flatten to match 4 input points
+        x_four = np.zeros((4, 2))
+        bi_acquisition = init_bi_acquisition(
+            None,
+            lambda s: lambda pts: np.ones((2, 2)),
+            lambda s: lambda pts: np.ones(4),
+        )
+        with self.assertRaises(ValueError):
+            bi_acquisition(x_four)
+
 
 if __name__ == "__main__":
     unittest.main()

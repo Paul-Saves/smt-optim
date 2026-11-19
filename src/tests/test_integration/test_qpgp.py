@@ -132,6 +132,92 @@ class TestqPGP(unittest.TestCase):
 
         np.testing.assert_array_equal(batch, np.array([[0.0, 0.0], [1.0, 0.0]]))
 
+    def test_qpgp_validate_config(self):
+        import smt.design_space as ds
+        from smt_optim.core import ConstraintConfig
+
+        obj = ObjectiveConfig(objective=[branin], surrogate=SmtAutoModel)
+
+        # multi-objective rejected
+        prob_mo = Problem(obj_configs=[obj, obj], design_space=self.bounds)
+        with self.assertRaises(ValueError):
+            Driver(
+                prob_mo,
+                DriverConfig(max_iter=1, nt_init=4),
+                qPGP,
+                dict(acq_init_1=init_mean, acq_init_2=negate(init_ivr)),
+            )
+
+        # constrained rejected
+        prob_cstr = Problem(
+            obj_configs=[obj],
+            design_space=self.bounds,
+            cstr_configs=[
+                ConstraintConfig(constraint=[branin], upper=1.0, surrogate=SmtAutoModel)
+            ],
+        )
+        with self.assertRaises(ValueError):
+            Driver(
+                prob_cstr,
+                DriverConfig(max_iter=1, nt_init=4),
+                qPGP,
+                dict(acq_init_1=init_mean, acq_init_2=negate(init_ivr)),
+            )
+
+        # multi-fidelity rejected
+        prob_mf = Problem(
+            obj_configs=[
+                ObjectiveConfig(objective=[branin, branin], surrogate=SmtAutoModel)
+            ],
+            design_space=self.bounds,
+            costs=[0.1, 1.0],
+        )
+        with self.assertRaises(ValueError):
+            Driver(
+                prob_mf,
+                DriverConfig(max_iter=1, nt_init=4),
+                qPGP,
+                dict(acq_init_1=init_mean, acq_init_2=negate(init_ivr)),
+            )
+
+        # non-continuous design space rejected
+        mixed_ds = ds.DesignSpace(
+            [ds.FloatVariable(-5.0, 10.0), ds.IntegerVariable(0, 15)]
+        )
+        prob_mixed = Problem(obj_configs=[obj], design_space=mixed_ds)
+        with self.assertRaises(ValueError):
+            Driver(
+                prob_mixed,
+                DriverConfig(max_iter=1, nt_init=4),
+                qPGP,
+                dict(acq_init_1=init_mean, acq_init_2=negate(init_ivr)),
+            )
+
+        # invalid batch_size and non-callable initializers rejected
+        prob = Problem(obj_configs=[obj], design_space=self.bounds)
+        with self.assertRaises(ValueError):
+            Driver(
+                prob,
+                DriverConfig(max_iter=1, nt_init=4),
+                qPGP,
+                dict(acq_init_1=init_mean, acq_init_2=negate(init_ivr), batch_size=0),
+            )
+        with self.assertRaises(TypeError):
+            Driver(
+                prob,
+                DriverConfig(max_iter=1, nt_init=4),
+                qPGP,
+                dict(acq_init_1=None, acq_init_2=negate(init_ivr)),
+            )
+
+    def test_qpgp_reproducibility(self):
+        state1 = self.run_driver(batch_size=3, max_iter=2)
+        state2 = self.run_driver(batch_size=3, max_iter=2)
+        d1 = state1.dataset.export_as_dict()
+        d2 = state2.dataset.export_as_dict()
+        np.testing.assert_array_equal(d1["x"], d2["x"])
+        np.testing.assert_array_equal(d1["obj"], d2["obj"])
+
 
 if __name__ == "__main__":
     unittest.main()

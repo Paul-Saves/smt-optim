@@ -25,7 +25,7 @@ def negate(acq_init: Callable) -> Callable:
         acq = acq_init(state)
 
         def neg_acq(x: np.ndarray) -> np.ndarray:
-            return -acq(x)
+            return -np.asarray(acq(x), dtype=float)
 
         return neg_acq
 
@@ -78,15 +78,19 @@ def init_bi_acquisition(state, acq_init_1: Callable, acq_init_2: Callable) -> Ca
     acq_funcs = (acq_init_1(state), acq_init_2(state))
 
     def bi_acquisition(x: np.ndarray) -> np.ndarray:
-
-        values = [np.asarray(acq(x), dtype=float).reshape(-1) for acq in acq_funcs]
-
-        for val in values:
-            if val.shape[0] != x.shape[0]:
+        n_points = x.shape[0]
+        values = []
+        for acq in acq_funcs:
+            val = np.asarray(acq(x), dtype=float)
+            if not (
+                (val.ndim == 1 and val.shape[0] == n_points)
+                or (val.ndim == 2 and val.shape == (n_points, 1))
+            ):
                 raise ValueError(
-                    f"Acquisition functions must return one value per point, but got "
-                    f"{val.shape[0]} values for {x.shape[0]} points."
+                    f"Acquisition functions must return shape ({n_points},) or "
+                    f"({n_points}, 1), but got {val.shape}."
                 )
+            values.append(val.reshape(-1))
 
         return np.column_stack(values)
 

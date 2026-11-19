@@ -75,6 +75,24 @@ class TestIMSEUnit(unittest.TestCase):
         self.assertEqual(ivr_vals.shape, (2, 1))
         np.testing.assert_allclose(ivr_vals, expected)
 
+    def test_ivr_default_integration_points_and_validation(self):
+        import warnings
+
+        x_cands = np.array([[0.25], [0.75]])
+        with warnings.catch_warnings(record=True):
+            warnings.simplefilter("always")
+            ivr_default = integrated_variance_reduction(self.sm, points=x_cands)
+        self.assertEqual(ivr_default.shape, (2, 1))
+
+        class UnsupportedModel:
+            pass
+
+        with self.assertRaises(TypeError):
+            init_ivr(DummyState(UnsupportedModel(), num_dim=1, iter=1))
+
+        with self.assertRaises(ValueError):
+            init_ivr(DummyState(self.sm, num_dim=1, iter=1), n_integration=0)
+
 
 if __name__ == "__main__":
     unittest.main()
